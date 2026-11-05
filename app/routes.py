@@ -19,13 +19,14 @@ def lista(tipo):
 
     por_pagina = current_app.config["ITENS_POR_PAGINA"]
     pedida = max(request.args.get("pagina", 1, type=int), 1)
+    filtros = catalogo.filtros_da_url(tipo, request.args)
 
-    itens, total = catalogo.listar(current_app, tipo, pedida, por_pagina)
+    itens, total = catalogo.listar(current_app, tipo, pedida, por_pagina, filtros)
     total_paginas = max(math.ceil(total / por_pagina), 1)
     pagina = min(pedida, total_paginas)
     if pagina != pedida:
         # Página pedida além do fim: mostra a última em vez de uma grade vazia.
-        itens, total = catalogo.listar(current_app, tipo, pagina, por_pagina)
+        itens, total = catalogo.listar(current_app, tipo, pagina, por_pagina, filtros)
 
     return render_template(
         "lista.html",
@@ -36,6 +37,8 @@ def lista(tipo):
         pagina=pagina,
         total_paginas=total_paginas,
         numeros_paginas=janela_paginas(pagina, total_paginas),
+        filtros=filtros,
+        campos_filtro=catalogo.campos_filtro(current_app, tipo, filtros),
     )
 
 

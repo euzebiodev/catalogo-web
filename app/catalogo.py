@@ -1,6 +1,7 @@
 """Consultas do catálogo. Cada tipo tem uma consulta de lista (capas) e uma de detalhe (popup)."""
 
 from decimal import Decimal
+from typing import NamedTuple
 
 from .db import fetch_all, fetch_one
 
@@ -10,6 +11,93 @@ TIPOS = {
     "vinil": {"nome": "Vinil", "tabela": "lp_vinil"},
 }
 
+
+class Filtro(NamedTuple):
+    rotulo: str
+    # Condição SQL com %(chave)s no lugar do valor.
+    condicao: str
+    # Consulta que devolve as opções, numa coluna chamada "valor".
+    opcoes: str
+
+
+# Filtros de escolha (select), por tipo. A chave é o nome do parâmetro na URL.
+FILTROS = {
+    "livros": {
+        "genero": Filtro(
+            "Gênero",
+            "EXISTS (SELECT 1 FROM livro_genero lg JOIN genero g ON g.id = lg.genero_id"
+            " WHERE lg.livro_id = l.id AND g.nome = %(genero)s)",
+            "SELECT DISTINCT g.nome AS valor FROM genero g"
+            " JOIN livro_genero lg ON lg.genero_id = g.id ORDER BY 1",
+        ),
+        "editora": Filtro(
+            "Editora",
+            "l.editora_id IN (SELECT id FROM editora WHERE nome = %(editora)s)",
+            "SELECT DISTINCT ed.nome AS valor FROM editora ed"
+            " JOIN livro l ON l.editora_id = ed.id ORDER BY 1",
+        ),
+        "encadernacao": Filtro(
+            "Encadernação",
+            "lower(trim(l.encadernacao)) = lower(%(encadernacao)s)",
+            "SELECT DISTINCT initcap(trim(encadernacao)) AS valor FROM livro"
+            " WHERE trim(coalesce(encadernacao, '')) <> '' ORDER BY 1",
+        ),
+    },
+    "gibis": {
+        "categoria": Filtro(
+            "Categoria",
+            "lower(g.categoria) = lower(%(categoria)s)",
+            "SELECT DISTINCT initcap(trim(categoria)) AS valor FROM gibi"
+            " WHERE trim(coalesce(categoria, '')) <> '' ORDER BY 1",
+        ),
+        "genero": Filtro(
+            "Gênero",
+            "EXISTS (SELECT 1 FROM gibi_genero gg JOIN genero ge ON ge.id = gg.genero_id"
+            " WHERE gg.gibi_id = g.id AND ge.nome = %(genero)s)",
+            "SELECT DISTINCT ge.nome AS valor FROM genero ge"
+            " JOIN gibi_genero gg ON gg.genero_id = ge.id ORDER BY 1",
+        ),
+        "editora": Filtro(
+            "Editora",
+            "g.editora_id IN (SELECT id FROM editora WHERE nome = %(editora)s)",
+            "SELECT DISTINCT ed.nome AS valor FROM editora ed"
+            " JOIN gibi g ON g.editora_id = ed.id ORDER BY 1",
+        ),
+    },
+    "vinil": {
+        "gravadora": Filtro(
+            "Gravadora",
+            "v.gravadora_id IN (SELECT id FROM gravadora WHERE nome = %(gravadora)s)",
+            "SELECT DISTINCT gr.nome AS valor FROM gravadora gr"
+            " JOIN lp_vinil v ON v.gravadora_id = gr.id ORDER BY 1",
+        ),
+        "genero": Filtro(
+            "Gênero",
+            "EXISTS (SELECT 1 FROM lp_genero lg JOIN genero ge ON ge.id = lg.genero_id"
+            " WHERE lg.lp_id = v.id AND ge.nome = %(genero)s)",
+            "SELECT DISTINCT ge.nome AS valor FROM genero ge"
+            " JOIN lp_genero lg ON lg.genero_id = ge.id ORDER BY 1",
+        ),
+    },
+}
+
+# Busca de texto livre: título, código, ISBN/catálogo e nome de autor, artista ou equipe.
+BUSCA = {
+    "livros": """(l.titulo ILIKE %(q)s OR l.codigo ILIKE %(q)s
+                  OR l.isbn10 ILIKE %(q)s OR l.isbn13 ILIKE %(q)s
+                  OR EXISTS (SELECT 1 FROM livro_autor la JOIN pessoa p ON p.id = la.pessoa_id
+                              WHERE la.livro_id = l.id AND p.nome ILIKE %(q)s))""",
+    "gibis": """(g.titulo ILIKE %(q)s OR g.codigo ILIKE %(q)s
+                 OR g.isbn10 ILIKE %(q)s OR g.isbn13 ILIKE %(q)s
+                 OR EXISTS (SELECT 1 FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
+                             WHERE gp.gibi_id = g.id AND p.nome ILIKE %(q)s))""",
+    "vinil": """(v.titulo ILIKE %(q)s OR v.codigo ILIKE %(q)s OR v.numero_catalogo ILIKE %(q)s
+                 OR EXISTS (SELECT 1 FROM lp_artista la JOIN pessoa p ON p.id = la.pessoa_id
+                             WHERE la.lp_id = v.id AND p.nome ILIKE %(q)s))""",
+}
+
+COLUNA_ANO = {"livros": "l.ano_publicacao", "gibis": "g.ano_publicacao", "vinil": "v.ano_publicacao"}
+
 SQL_LISTA = {
     "livros": """
         SELECT l.codigo, l.titulo, l.capa_arquivo,
@@ -17,8 +105,9 @@ SQL_LISTA = {
                   FROM livro_autor la JOIN pessoa p ON p.id = la.pessoa_id
                  WHERE la.livro_id = l.id) AS subtitulo
         FROM livro l
+        {where}
         ORDER BY l.codigo
-        LIMIT %s OFFSET %s
+        LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "gibis": """
         SELECT g.codigo, g.titulo, g.capa_arquivo,
@@ -26,8 +115,9 @@ SQL_LISTA = {
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
                  WHERE gp.gibi_id = g.id) AS subtitulo
         FROM gibi g
+        {where}
         ORDER BY g.codigo
-        LIMIT %s OFFSET %s
+        LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "vinil": """
         SELECT v.codigo, v.titulo, v.capa_arquivo,
@@ -35,15 +125,16 @@ SQL_LISTA = {
                   FROM lp_artista la JOIN pessoa p ON p.id = la.pessoa_id
                  WHERE la.lp_id = v.id) AS subtitulo
         FROM lp_vinil v
+        {where}
         ORDER BY v.codigo
-        LIMIT %s OFFSET %s
+        LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
 }
 
 SQL_TOTAL = {
-    "livros": "SELECT count(*) AS total FROM livro",
-    "gibis": "SELECT count(*) AS total FROM gibi",
-    "vinil": "SELECT count(*) AS total FROM lp_vinil",
+    "livros": "SELECT count(*) AS total FROM livro l {where}",
+    "gibis": "SELECT count(*) AS total FROM gibi g {where}",
+    "vinil": "SELECT count(*) AS total FROM lp_vinil v {where}",
 }
 
 SQL_DETALHE = {
@@ -150,10 +241,54 @@ CAMPOS_POPUP = {
 }
 
 
-def listar(app, tipo, pagina, por_pagina):
-    total = fetch_one(app, SQL_TOTAL[tipo])["total"]
-    offset = (pagina - 1) * por_pagina
-    itens = fetch_all(app, SQL_LISTA[tipo], (por_pagina, offset))
+def filtros_da_url(tipo, args):
+    """Lê só os parâmetros de filtro conhecidos e descarta os vazios."""
+    chaves = ["q", "ano_de", "ano_ate", *FILTROS[tipo]]
+    valores = {chave: args.get(chave, "").strip() for chave in chaves}
+    return {chave: valor for chave, valor in valores.items() if valor}
+
+
+def campos_filtro(app, tipo, filtros):
+    """Campos de escolha do formulário, com as opções vindas do banco."""
+    campos = []
+    for chave, filtro in FILTROS[tipo].items():
+        opcoes = [linha["valor"] for linha in fetch_all(app, filtro.opcoes)]
+        campos.append({"chave": chave, "rotulo": filtro.rotulo, "opcoes": opcoes})
+    return campos
+
+
+def montar_filtro(tipo, filtros):
+    """Monta o WHERE e os parâmetros. Os nomes de coluna vêm só do código; os valores vão como parâmetros."""
+    condicoes = []
+    params = {}
+
+    if "q" in filtros:
+        condicoes.append(BUSCA[tipo])
+        params["q"] = f"%{_escapar_like(filtros['q'])}%"
+
+    for chave, filtro in FILTROS[tipo].items():
+        if chave in filtros:
+            condicoes.append(filtro.condicao)
+            params[chave] = filtros[chave]
+
+    for chave, operador in (("ano_de", ">="), ("ano_ate", "<=")):
+        if chave in filtros and filtros[chave].isdigit():
+            condicoes.append(f"{COLUNA_ANO[tipo]} {operador} %({chave})s")
+            params[chave] = int(filtros[chave])
+
+    where = f"WHERE {' AND '.join(condicoes)}" if condicoes else ""
+    return where, params
+
+
+def listar(app, tipo, pagina, por_pagina, filtros=None):
+    where, params = montar_filtro(tipo, filtros or {})
+    total = fetch_one(app, SQL_TOTAL[tipo].format(where=where), params)["total"]
+    params_lista = {
+        **params,
+        "limite": por_pagina,
+        "deslocamento": (pagina - 1) * por_pagina,
+    }
+    itens = fetch_all(app, SQL_LISTA[tipo].format(where=where), params_lista)
     return itens, total
 
 
@@ -186,3 +321,8 @@ def formatar(valor):
         return valor.strftime("%d/%m/%Y")
     texto = str(valor).strip()
     return texto or None
+
+
+def _escapar_like(texto):
+    """Escapa os curingas do ILIKE para que % e _ digitados sejam buscados como texto."""
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

@@ -82,7 +82,19 @@ Logs: `journalctl -u catalogo-web -f`.
 | Rota | O que faz |
 |---|---|
 | `/` | redireciona para `/livros` |
-| `/livros`, `/gibis`, `/vinil` | aba com a grade de capas paginada (`?pagina=N`) |
+| `/livros`, `/gibis`, `/vinil` | aba com a grade de capas paginada (`?pagina=N`) e filtros opcionais |
+
+Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora maiúsculas, mas não acentos):
+
+| Parâmetro | Aba | O que filtra |
+|---|---|---|
+| `q` | todas | título, código, ISBN e nome de autor, artista ou equipe |
+| `ano_de`, `ano_ate` | todas | faixa de ano de publicação |
+| `genero` | livros, gibis, vinil | gênero |
+| `editora` | livros, gibis | editora |
+| `encadernacao` | livros | encadernação (sem diferença de maiúsculas) |
+| `categoria` | gibis | categoria (Gibi, Graphic Novel, Mangá) |
+| `gravadora` | vinil | gravadora |
 | `/api/<tipo>/<codigo>` | JSON com os dados do item, usado pelo popup |
 | `/capas/<arquivo>` | serve as imagens de capa |
 

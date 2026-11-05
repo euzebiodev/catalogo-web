@@ -3,7 +3,42 @@
 {% block titulo %}{{ abas[tipo_ativo].nome }} · Catálogo{% endblock %}
 
 {% block conteudo %}
-  <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}</p>
+  <form class="busca" method="get" action="{{ url_for('catalogo.lista', tipo=tipo_ativo) }}" role="search">
+    <label class="busca-texto">
+      <span>Buscar</span>
+      <input type="search" name="q" value="{{ filtros.get('q', '') }}"
+             placeholder="Título, autor, código ou ISBN">
+    </label>
+    {% for campo in campos_filtro %}
+      <label>
+        <span>{{ campo.rotulo }}</span>
+        <select name="{{ campo.chave }}">
+          <option value="">Todos</option>
+          {% for opcao in campo.opcoes %}
+            <option value="{{ opcao }}"{% if opcao == filtros.get(campo.chave) %} selected{% endif %}>{{ opcao }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endfor %}
+    <label>
+      <span>Ano de</span>
+      <input type="number" name="ano_de" inputmode="numeric" min="0" max="2100"
+             value="{{ filtros.get('ano_de', '') }}">
+    </label>
+    <label>
+      <span>Ano até</span>
+      <input type="number" name="ano_ate" inputmode="numeric" min="0" max="2100"
+             value="{{ filtros.get('ano_ate', '') }}">
+    </label>
+    <div class="busca-acoes">
+      <button type="submit">Filtrar</button>
+      {% if filtros %}
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo) }}">Limpar</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}{% if filtros %} encontrado{{ '' if total == 1 else 's' }}{% endif %}</p>
 
   {% if itens %}
     <ul class="grade" role="list">
@@ -29,13 +64,17 @@
       {% endfor %}
     </ul>
   {% else %}
-    <p class="vazio">Nenhum item cadastrado nesta coleção.</p>
+    {% if filtros %}
+      <p class="vazio">Nenhum item encontrado com esses filtros.</p>
+    {% else %}
+      <p class="vazio">Nenhum item cadastrado nesta coleção.</p>
+    {% endif %}
   {% endif %}
 
   {% if total_paginas > 1 %}
     <nav class="paginacao" aria-label="Paginação">
       {% if pagina > 1 %}
-        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina - 1) }}" rel="prev">Anterior</a>
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina - 1, **filtros) }}" rel="prev">Anterior</a>
       {% else %}
         <span class="desativado">Anterior</span>
       {% endif %}
@@ -46,12 +85,12 @@
         {% elif numero == pagina %}
           <span class="pagina atual" aria-current="page">{{ numero }}</span>
         {% else %}
-          <a class="pagina" href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=numero) }}">{{ numero }}</a>
+          <a class="pagina" href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=numero, **filtros) }}">{{ numero }}</a>
         {% endif %}
       {% endfor %}
 
       {% if pagina < total_paginas %}
-        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina + 1) }}" rel="next">Próxima</a>
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina + 1, **filtros) }}" rel="next">Próxima</a>
       {% else %}
         <span class="desativado">Próxima</span>
       {% endif %}
