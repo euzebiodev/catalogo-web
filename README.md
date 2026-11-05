@@ -65,6 +65,18 @@ dados/capas/      cópia local das capas (fica fora do git)
 - **Schema de destino:** o script usa o `search_path` da `DATABASE_URL`. Sem o parâmetro `options`, o schema é `public`. Para usar outro schema, como em uma cópia de teste, adicione `?options=-csearch_path%3Dnome_do_schema`.
 - **Capas:** ficam em `CAPAS_DIR` (padrão `dados/capas`), com caminhos relativos como `livro/L0049.jpg`, iguais aos gravados na coluna `capa_arquivo`. Para usar as capas de um servidor, aponte `CAPAS_DIR` para a pasta delas. As capas não vão para o git.
 
+## Deploy no um1 (Jenkins + systemd)
+
+O job `catalogo-web` no Jenkins do um1 lê o `Jenkinsfile` deste repositório, verifica o código e chama `/opt/catalogo-web/deploy-catalogo-web.sh`. O script instala o app em `/opt/catalogo-web`, aplica o esquema se preciso e reinicia o serviço `catalogo-web`.
+
+- **Porta:** 8092, liberada no UFW só para a rede local (`192.168.0.0/24`).
+- **Usuário do serviço:** `catalogo-web` (sistema, sem login).
+- **Configuração:** `/etc/catalogo-web/catalogo-web.env`, com `DATABASE_URL` e `CAPAS_DIR`. Esse arquivo fica só no servidor, com dono `root` e permissão `0640`. Não vai para o git.
+- **Banco:** o serviço usa um usuário só de leitura. Para instalar em um banco vazio, use um usuário com permissão para criar tabelas, temporariamente, na `DATABASE_URL`.
+- **Script de deploy:** a cópia em `deploy/` serve de referência. O que roda como root é o arquivo em `/opt/catalogo-web/`, que só o root altera.
+
+Logs: `journalctl -u catalogo-web -f`.
+
 ## Endpoints
 
 | Rota | O que faz |
