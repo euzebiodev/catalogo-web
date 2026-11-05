@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block titulo %}{{ abas[tipo_ativo].nome }} · Catálogo{% endblock %}
+
+{% block conteudo %}
+  <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}</p>
+
+  {% if itens %}
+    <ul class="grade" role="list">
+      {% for item in itens %}
+        <li>
+          <button type="button" class="cartao cartao-{{ tipo_ativo }}"
+                  data-tipo="{{ tipo_ativo }}" data-codigo="{{ item.codigo }}"
+                  aria-label="Ver detalhes de {{ item.titulo }}">
+            {% if item.capa_arquivo %}
+              <img src="{{ url_for('catalogo.capa', arquivo=item.capa_arquivo) }}"
+                   alt="Capa de {{ item.titulo }}" loading="lazy">
+            {% else %}
+              <div class="sem-capa">
+                <span>{{ item.titulo }}</span>
+              </div>
+            {% endif %}
+            <span class="cartao-titulo">{{ item.titulo }}</span>
+            {% if item.subtitulo %}
+              <span class="cartao-subtitulo">{{ item.subtitulo }}</span>
+            {% endif %}
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="vazio">Nenhum item cadastrado nesta coleção.</p>
+  {% endif %}
+
+  {% if total_paginas > 1 %}
+    <nav class="paginacao" aria-label="Paginação">
+      {% if pagina > 1 %}
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina - 1) }}" rel="prev">Anterior</a>
+      {% else %}
+        <span class="desativado">Anterior</span>
+      {% endif %}
+
+      {% for numero in numeros_paginas %}
+        {% if numero is none %}
+          <span class="reticencias">…</span>
+        {% elif numero == pagina %}
+          <span class="pagina atual" aria-current="page">{{ numero }}</span>
+        {% else %}
+          <a class="pagina" href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=numero) }}">{{ numero }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagina < total_paginas %}
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina + 1) }}" rel="next">Próxima</a>
+      {% else %}
+        <span class="desativado">Próxima</span>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}
+
+{% block fim %}
+  <dialog id="detalhe" class="detalhe" aria-labelledby="detalhe-titulo">
+    <form method="dialog" class="detalhe-fechar">
+      <button type="submit" aria-label="Fechar">×</button>
+    </form>
+    <div class="detalhe-corpo" id="detalhe-corpo" aria-live="polite"></div>
+  </dialog>
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+{% endblock %}

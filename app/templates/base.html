@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Catálogo{% endblock %}</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="topo">
+    <h1>Catálogo pessoal</h1>
+    <nav class="abas" aria-label="Coleções">
+      {% for chave, aba in abas.items() %}
+        <a href="{{ url_for('catalogo.lista', tipo=chave) }}"
+           class="aba{{ ' ativa' if chave == tipo_ativo }}"
+           {% if chave == tipo_ativo %}aria-current="page"{% endif %}>{{ aba.nome }}</a>
+      {% endfor %}
+    </nav>
+  </header>
+
+  <main class="conteudo">
+    {% block conteudo %}{% endblock %}
+  </main>
+
+  {% block fim %}{% endblock %}
+</body>
+</html>
