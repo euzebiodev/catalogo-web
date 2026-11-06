@@ -768,3 +768,29 @@ ALTER TABLE ONLY lp_vinil
 --
 
 
+
+--
+-- Faixas dos LPs e compositores (migracoes/002_faixas_lp.sql)
+--
+
+CREATE TABLE lp_faixa (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    lp_id bigint NOT NULL,
+    numero integer NOT NULL,
+    titulo text NOT NULL,
+    duracao text,
+    youtube_url text,
+    CONSTRAINT lp_faixa_pkey PRIMARY KEY (id),
+    CONSTRAINT lp_faixa_lp_id_numero_key UNIQUE (lp_id, numero),
+    CONSTRAINT lp_faixa_lp_id_fkey FOREIGN KEY (lp_id) REFERENCES lp_vinil(id) ON DELETE CASCADE
+);
+
+CREATE TABLE lp_faixa_autor (
+    faixa_id bigint NOT NULL,
+    pessoa_id bigint NOT NULL,
+    CONSTRAINT lp_faixa_autor_pkey PRIMARY KEY (faixa_id, pessoa_id),
+    CONSTRAINT lp_faixa_autor_faixa_id_fkey FOREIGN KEY (faixa_id) REFERENCES lp_faixa(id) ON DELETE CASCADE,
+    CONSTRAINT lp_faixa_autor_pessoa_id_fkey FOREIGN KEY (pessoa_id) REFERENCES pessoa(id)
+);
+
+CREATE INDEX idx_lp_faixa_autor_p ON lp_faixa_autor USING btree (pessoa_id);

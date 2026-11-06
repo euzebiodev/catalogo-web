@@ -187,6 +187,20 @@ SQL_DETALHE = {
     """,
 }
 
+# Faixas com compositores e link de clipe. Só os tipos que têm faixas aparecem aqui.
+SQL_FAIXAS = {
+    "vinil": """
+        SELECT f.numero, f.titulo, f.duracao, f.youtube_url,
+               (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
+                  FROM lp_faixa_autor fa JOIN pessoa p ON p.id = fa.pessoa_id
+                 WHERE fa.faixa_id = f.id) AS autores
+        FROM lp_faixa f
+        JOIN lp_vinil v ON v.id = f.lp_id
+        WHERE v.codigo = %s
+        ORDER BY f.numero
+    """,
+}
+
 # Rótulos do popup, na ordem em que aparecem. Campos vazios são omitidos.
 CAMPOS_POPUP = {
     "livros": [
@@ -303,12 +317,15 @@ def detalhe(app, tipo, codigo):
         if valor:
             campos.append({"rotulo": rotulo, "valor": valor})
 
+    faixas = fetch_all(app, SQL_FAIXAS[tipo], (codigo,)) if tipo in SQL_FAIXAS else []
+
     return {
         "codigo": linha["codigo"],
         "titulo": linha["titulo"],
         "capa_arquivo": linha["capa_arquivo"],
         "capa_fonte": linha["capa_fonte"],
         "campos": campos,
+        "faixas": faixas,
     }
 
 

@@ -62,6 +62,7 @@ dados/capas/      cópia local das capas (fica fora do git)
 ## Banco de dados
 
 - **Schema:** `db/schema.sql` foi gerado com `pg_dump --schema-only`. Para atualizá-lo depois de mudar o banco, gere o dump de novo e remova a linha `SELECT pg_catalog.set_config('search_path', '', false);`, que zera o `search_path` e impede o `setup_db.py` de criar as tabelas.
+- **Migrações:** `db/migracoes/` tem as alterações de estrutura para bancos que já existem. O `setup_db.py` só aplica o esquema em banco vazio, então em um banco existente rode a migração à mão, uma vez, na ordem dos números (por exemplo `psql "$DATABASE_URL" -f db/migracoes/002_faixas_lp.sql`). Os arquivos usam `IF NOT EXISTS` e podem ser reaplicados.
 - **Schema de destino:** o script usa o `search_path` da `DATABASE_URL`. Sem o parâmetro `options`, o schema é `public`. Para usar outro schema, como em uma cópia de teste, adicione `?options=-csearch_path%3Dnome_do_schema`.
 - **Capas:** ficam em `CAPAS_DIR` (padrão `dados/capas`), com caminhos relativos como `livro/L0049.jpg`, iguais aos gravados na coluna `capa_arquivo`. Para usar as capas de um servidor, aponte `CAPAS_DIR` para a pasta delas. As capas não vão para o git.
 
