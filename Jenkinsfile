@@ -6,6 +6,12 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
+    // Verifica o repositório a cada 5 minutos. Fica aqui, no Jenkinsfile, para
+    // não se perder quando o Jenkins regrava a configuração do job.
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+
     stages {
         stage('Verificar') {
             steps {
