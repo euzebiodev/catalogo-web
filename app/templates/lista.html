@@ -9,6 +9,9 @@
       <input type="search" name="q" value="{{ filtros.get('q', '') }}"
              placeholder="Título, autor, código ou ISBN">
     </label>
+    <input type="checkbox" id="busca-mostrar" class="busca-alternar"{% if filtros|length > ('q' in filtros)|int %} checked{% endif %}>
+    <label class="busca-alternar-rotulo" for="busca-mostrar">Filtros</label>
+    <div class="busca-campos">
     {% for campo in campos_filtro %}
       <label>
         <span>{{ campo.rotulo }}</span>
@@ -30,6 +33,7 @@
       <input type="number" name="ano_ate" inputmode="numeric" min="0" max="2100"
              value="{{ filtros.get('ano_ate', '') }}">
     </label>
+    </div>
     <div class="busca-acoes">
       <button type="submit">Filtrar</button>
       {% if filtros %}

@@ -178,6 +178,7 @@ body {
 }
 
 .busca {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
@@ -234,6 +235,21 @@ body {
 
 .busca-acoes a {
   color: var(--texto-suave);
+}
+
+/* O interruptor "Filtros" só aparece no celular; no desktop os campos ficam sempre visíveis. */
+.busca-alternar {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.busca-campos {
+  display: contents;
+}
+
+.busca .busca-alternar-rotulo {
+  display: none;
 }
 
 .paginacao {
@@ -376,5 +392,66 @@ body {
 
   .detalhe-capa {
     max-width: 180px;
+  }
+
+  /* Celular: cabeçalho rola com a página, em vez de ocupar a tela fixa. */
+  .topo {
+    position: static;
+    padding: 0 12px;
+  }
+
+  .topo h1 {
+    padding: 10px 0 4px;
+    font-size: 1.1rem;
+  }
+
+  .busca {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .busca .busca-alternar-rotulo {
+    display: block;
+    padding: 10px 12px;
+    border: 1px solid var(--borda);
+    border-radius: 6px;
+    background: var(--fundo);
+    color: var(--texto);
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .busca-alternar:focus-visible + .busca-alternar-rotulo {
+    outline: 2px solid var(--destaque);
+    outline-offset: 2px;
+  }
+
+  .busca-campos {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .busca-alternar:checked ~ .busca-campos {
+    display: grid;
+  }
+
+  /* Alvos de toque de pelo menos 40px. */
+  .paginacao a,
+  .paginacao span {
+    min-width: 40px;
+    padding: 8px 12px;
+  }
+
+  .detalhe {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .detalhe-corpo {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
   }
 }
