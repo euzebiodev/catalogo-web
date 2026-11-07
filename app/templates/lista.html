@@ -9,6 +9,14 @@
       <input type="search" name="q" value="{{ filtros.get('q', '') }}"
              placeholder="Título, autor, código ou ISBN">
     </label>
+    <label>
+      <span>Ordenar por</span>
+      <select name="ordem">
+        {% for opcao in opcoes_ordem %}
+          <option value="{{ opcao.chave }}"{% if opcao.chave == ordem %} selected{% endif %}>{{ opcao.rotulo }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <input type="checkbox" id="busca-mostrar" class="busca-alternar"{% if filtros|length > ('q' in filtros)|int %} checked{% endif %}>
     <label class="busca-alternar-rotulo" for="busca-mostrar">Filtros</label>
     <div class="busca-campos">
@@ -78,7 +86,7 @@
   {% if total_paginas > 1 %}
     <nav class="paginacao" aria-label="Paginação">
       {% if pagina > 1 %}
-        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina - 1, **filtros) }}" rel="prev">Anterior</a>
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina - 1, ordem=ordem, **filtros) }}" rel="prev">Anterior</a>
       {% else %}
         <span class="desativado">Anterior</span>
       {% endif %}
@@ -89,12 +97,12 @@
         {% elif numero == pagina %}
           <span class="pagina atual" aria-current="page">{{ numero }}</span>
         {% else %}
-          <a class="pagina" href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=numero, **filtros) }}">{{ numero }}</a>
+          <a class="pagina" href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=numero, ordem=ordem, **filtros) }}">{{ numero }}</a>
         {% endif %}
       {% endfor %}
 
       {% if pagina < total_paginas %}
-        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina + 1, **filtros) }}" rel="next">Próxima</a>
+        <a href="{{ url_for('catalogo.lista', tipo=tipo_ativo, pagina=pagina + 1, ordem=ordem, **filtros) }}" rel="next">Próxima</a>
       {% else %}
         <span class="desativado">Próxima</span>
       {% endif %}

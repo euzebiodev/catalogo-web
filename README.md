@@ -83,7 +83,9 @@ Logs: `journalctl -u catalogo-web -f`.
 | Rota | O que faz |
 |---|---|
 | `/` | redireciona para `/livros` |
-| `/livros`, `/gibis`, `/vinil` | aba com a grade de capas paginada (`?pagina=N`) e filtros opcionais |
+| `/livros`, `/gibis`, `/vinil` | aba com a grade de capas paginada (`?pagina=N`), filtros opcionais e ordenação (`?ordem=`) |
+
+Ordenação (`ordem`), por aba: `codigo` (padrão), `titulo`, `autor` (autor, equipe ou artista), `editora` (livros e gibis) ou `gravadora` (vinil), `ano_asc` e `ano_desc`. Valor desconhecido cai no padrão.
 
 Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora maiúsculas, mas não acentos):
 

@@ -98,6 +98,35 @@ BUSCA = {
 
 COLUNA_ANO = {"livros": "l.ano_publicacao", "gibis": "g.ano_publicacao", "vinil": "v.ano_publicacao"}
 
+# Ordenações da lista, por aba. A chave vai na URL (?ordem=); o SQL vem só deste código.
+# O desempate é sempre o código. "autor" usa o alias "subtitulo" da consulta de lista.
+ORDENACOES = {
+    "livros": {
+        "codigo": ("Código", "l.codigo"),
+        "titulo": ("Título", "l.titulo"),
+        "autor": ("Autor", "subtitulo"),
+        "editora": ("Editora", "(SELECT ed.nome FROM editora ed WHERE ed.id = l.editora_id)"),
+        "ano_asc": ("Ano (mais antigo)", "l.ano_publicacao ASC NULLS LAST"),
+        "ano_desc": ("Ano (mais recente)", "l.ano_publicacao DESC NULLS LAST"),
+    },
+    "gibis": {
+        "codigo": ("Código", "g.codigo"),
+        "titulo": ("Título", "g.titulo"),
+        "autor": ("Autor ou equipe", "subtitulo"),
+        "editora": ("Editora", "(SELECT ed.nome FROM editora ed WHERE ed.id = g.editora_id)"),
+        "ano_asc": ("Ano (mais antigo)", "g.ano_publicacao ASC NULLS LAST"),
+        "ano_desc": ("Ano (mais recente)", "g.ano_publicacao DESC NULLS LAST"),
+    },
+    "vinil": {
+        "codigo": ("Código", "v.codigo"),
+        "titulo": ("Título", "v.titulo"),
+        "autor": ("Artista", "subtitulo"),
+        "gravadora": ("Gravadora", "(SELECT gr.nome FROM gravadora gr WHERE gr.id = v.gravadora_id)"),
+        "ano_asc": ("Ano (mais antigo)", "v.ano_publicacao ASC NULLS LAST"),
+        "ano_desc": ("Ano (mais recente)", "v.ano_publicacao DESC NULLS LAST"),
+    },
+}
+
 SQL_LISTA = {
     "livros": """
         SELECT l.codigo, l.titulo, l.capa_arquivo,
@@ -106,7 +135,7 @@ SQL_LISTA = {
                  WHERE la.livro_id = l.id) AS subtitulo
         FROM livro l
         {where}
-        ORDER BY l.codigo
+        ORDER BY {ordem}
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "gibis": """
@@ -116,7 +145,7 @@ SQL_LISTA = {
                  WHERE gp.gibi_id = g.id) AS subtitulo
         FROM gibi g
         {where}
-        ORDER BY g.codigo
+        ORDER BY {ordem}
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "vinil": """
@@ -126,7 +155,7 @@ SQL_LISTA = {
                  WHERE la.lp_id = v.id) AS subtitulo
         FROM lp_vinil v
         {where}
-        ORDER BY v.codigo
+        ORDER BY {ordem}
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
 }
@@ -262,6 +291,24 @@ def filtros_da_url(tipo, args):
     return {chave: valor for chave, valor in valores.items() if valor}
 
 
+def ordem_da_url(tipo, args):
+    """Chave de ordenação pedida; valor desconhecido cai no padrão (código)."""
+    pedida = args.get("ordem", "").strip()
+    return pedida if pedida in ORDENACOES[tipo] else "codigo"
+
+
+def opcoes_ordem(tipo):
+    """Opções do seletor "Ordenar por", na ordem em que aparecem."""
+    return [{"chave": chave, "rotulo": rotulo} for chave, (rotulo, _) in ORDENACOES[tipo].items()]
+
+
+def ordenar_sql(tipo, ordem):
+    """Cláusula ORDER BY. Vem só de ORDENACOES; o código é o desempate."""
+    alias = {"livros": "l", "gibis": "g", "vinil": "v"}[tipo]
+    _, expressao = ORDENACOES[tipo][ordem]
+    return f"{expressao}, {alias}.codigo"
+
+
 def campos_filtro(app, tipo, filtros):
     """Campos de escolha do formulário, com as opções vindas do banco."""
     campos = []
@@ -294,7 +341,7 @@ def montar_filtro(tipo, filtros):
     return where, params
 
 
-def listar(app, tipo, pagina, por_pagina, filtros=None):
+def listar(app, tipo, pagina, por_pagina, filtros=None, ordem="codigo"):
     where, params = montar_filtro(tipo, filtros or {})
     total = fetch_one(app, SQL_TOTAL[tipo].format(where=where), params)["total"]
     params_lista = {
@@ -302,7 +349,8 @@ def listar(app, tipo, pagina, por_pagina, filtros=None):
         "limite": por_pagina,
         "deslocamento": (pagina - 1) * por_pagina,
     }
-    itens = fetch_all(app, SQL_LISTA[tipo].format(where=where), params_lista)
+    consulta = SQL_LISTA[tipo].format(where=where, ordem=ordenar_sql(tipo, ordem))
+    itens = fetch_all(app, consulta, params_lista)
     return itens, total
 
 
