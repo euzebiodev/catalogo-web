@@ -3,3 +3,8 @@ __pycache__/
 *.pyc
 .env
 dados/
+
+# Restauração: configuração com senhas e pasta de downloads
+restauracao/restauracao.conf
+restauracao/restauracao-download/
+restauracao/restauracao-capas/
