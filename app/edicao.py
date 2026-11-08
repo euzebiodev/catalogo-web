@@ -99,6 +99,21 @@ CAMPOS = {
             Campo("notas", "notas", "longo", "Observações", tamanho=5000),
         ],
     },
+    "album": {
+        "tabela": "album_figurinha",
+        "campos": [
+            Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
+            _EDITORA,
+            _ESTANTE,
+            Campo("numero_figurinhas", "numero_figurinhas", "inteiro", "Número de figurinhas", faixa=(0, 5000)),
+            _ANO,
+            _CONSERVACAO,
+            _AQUISICAO,
+            _PRECO,
+            _FONTE_CAPA,
+            Campo("notas", "notas", "longo", "Observações", tamanho=5000),
+        ],
+    },
 }
 
 
@@ -268,7 +283,7 @@ def _salvar_autores(conn, livro_id, texto):
 
 # Troca de capa: a imagem vai para CAPAS_DIR/<pasta>/<codigo>.<ext> e o banco aponta para ela.
 
-PASTA_CAPA = {"livros": "livro", "gibis": "gibi", "vinil": "lp"}
+PASTA_CAPA = {"livros": "livro", "gibis": "gibi", "vinil": "lp", "album": "album"}
 TAMANHO_MAX_CAPA = 5 * 1024 * 1024  # 5 MB
 
 

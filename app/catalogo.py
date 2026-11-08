@@ -9,6 +9,7 @@ TIPOS = {
     "livros": {"nome": "Livros", "tabela": "livro"},
     "gibis": {"nome": "Gibis", "tabela": "gibi"},
     "vinil": {"nome": "Vinil", "tabela": "lp_vinil"},
+    "album": {"nome": "Álbuns de figurinhas", "tabela": "album_figurinha"},
 }
 
 
@@ -79,6 +80,14 @@ FILTROS = {
             " JOIN lp_genero lg ON lg.genero_id = ge.id ORDER BY 1",
         ),
     },
+    "album": {
+        "editora": Filtro(
+            "Editora",
+            "a.editora_id IN (SELECT id FROM editora WHERE nome = %(editora)s)",
+            "SELECT DISTINCT ed.nome AS valor FROM editora ed"
+            " JOIN album_figurinha a ON a.editora_id = ed.id ORDER BY 1",
+        ),
+    },
 }
 
 # Busca de texto livre: título, código, ISBN/catálogo e nome de autor, artista ou equipe.
@@ -94,9 +103,15 @@ BUSCA = {
     "vinil": """(v.titulo ILIKE %(q)s OR v.codigo ILIKE %(q)s OR v.numero_catalogo ILIKE %(q)s
                  OR EXISTS (SELECT 1 FROM lp_artista la JOIN pessoa p ON p.id = la.pessoa_id
                              WHERE la.lp_id = v.id AND p.nome ILIKE %(q)s))""",
+    "album": "(a.titulo ILIKE %(q)s OR a.codigo ILIKE %(q)s)",
 }
 
-COLUNA_ANO = {"livros": "l.ano_publicacao", "gibis": "g.ano_publicacao", "vinil": "v.ano_publicacao"}
+COLUNA_ANO = {
+    "livros": "l.ano_publicacao",
+    "gibis": "g.ano_publicacao",
+    "vinil": "v.ano_publicacao",
+    "album": "a.ano_publicacao",
+}
 
 def _sem_acento(coluna):
     """Chave de ordenação do título sem acento e sem maiúscula.
@@ -138,6 +153,13 @@ ORDENACOES = {
         "ano_asc": ("Ano (mais antigo)", "v.ano_publicacao ASC NULLS LAST"),
         "ano_desc": ("Ano (mais recente)", "v.ano_publicacao DESC NULLS LAST"),
     },
+    "album": {
+        "codigo": ("Código", "a.codigo"),
+        "titulo": ("Título", _sem_acento("a.titulo")),
+        "editora": ("Editora", "(SELECT ed.nome FROM editora ed WHERE ed.id = a.editora_id)"),
+        "ano_asc": ("Ano (mais antigo)", "a.ano_publicacao ASC NULLS LAST"),
+        "ano_desc": ("Ano (mais recente)", "a.ano_publicacao DESC NULLS LAST"),
+    },
 }
 
 SQL_LISTA = {
@@ -171,12 +193,20 @@ SQL_LISTA = {
         ORDER BY {ordem}
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
+    "album": """
+        SELECT a.codigo, a.titulo, a.capa_arquivo, NULL::text AS subtitulo
+        FROM album_figurinha a
+        {where}
+        ORDER BY {ordem}
+        LIMIT %(limite)s OFFSET %(deslocamento)s
+    """,
 }
 
 SQL_TOTAL = {
     "livros": "SELECT count(*) AS total FROM livro l {where}",
     "gibis": "SELECT count(*) AS total FROM gibi g {where}",
     "vinil": "SELECT count(*) AS total FROM lp_vinil v {where}",
+    "album": "SELECT count(*) AS total FROM album_figurinha a {where}",
 }
 
 SQL_DETALHE = {
@@ -226,6 +256,15 @@ SQL_DETALHE = {
         LEFT JOIN gravadora gr ON gr.id = v.gravadora_id
         LEFT JOIN estante est ON est.id = v.estante_id
         WHERE v.codigo = %s
+    """,
+    "album": """
+        SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
+               a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte,
+               ed.nome AS editora, est.nome AS estante
+        FROM album_figurinha a
+        LEFT JOIN editora ed ON ed.id = a.editora_id
+        LEFT JOIN estante est ON est.id = a.estante_id
+        WHERE a.codigo = %s
     """,
 }
 
@@ -295,6 +334,16 @@ CAMPOS_POPUP = {
         ("Preço", "preco"),
         ("Observações", "notas"),
     ],
+    "album": [
+        ("Editora", "editora"),
+        ("Ano", "ano_publicacao"),
+        ("Número de figurinhas", "numero_figurinhas"),
+        ("Estante", "estante"),
+        ("Conservação", "conservacao"),
+        ("Aquisição", "aquisicao_data"),
+        ("Preço", "preco"),
+        ("Observações", "notas"),
+    ],
 }
 
 
@@ -318,7 +367,7 @@ def opcoes_ordem(tipo):
 
 def ordenar_sql(tipo, ordem):
     """Cláusula ORDER BY. Vem só de ORDENACOES; o código é o desempate."""
-    alias = {"livros": "l", "gibis": "g", "vinil": "v"}[tipo]
+    alias = {"livros": "l", "gibis": "g", "vinil": "v", "album": "a"}[tipo]
     _, expressao = ORDENACOES[tipo][ordem]
     return f"{expressao}, {alias}.codigo"
 
