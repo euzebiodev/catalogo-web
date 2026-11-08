@@ -103,7 +103,7 @@ Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora
 
 ## Edição manual e login
 
-Cada livro, gibi e vinil tem um link "Editar campos" no popup. A edição mexe nos campos próprios do item (título, editora, ISBN, preço, observações etc.). Autores, gêneros e faixas ainda não são editados por aqui. Editora, estante e gravadora são informadas pelo nome: se o nome não existir, é cadastrado.
+Cada livro, gibi e vinil tem um link "Editar campos" no popup. A edição mexe nos campos próprios do item (título, editora, ISBN, preço, observações etc.). Nos livros, o campo Autor(es) aceita vários nomes separados por vírgula. Gêneros e faixas ainda não são editados por aqui. Editora, estante e gravadora são informadas pelo nome: se o nome não existir, é cadastrado.
 
 A edição fica **desligada** até que todas estas variáveis estejam no `.env` (ou no arquivo de configuração do servidor):
 

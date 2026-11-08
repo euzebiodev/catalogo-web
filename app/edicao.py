@@ -42,6 +42,8 @@ CAMPOS = {
         "tabela": "livro",
         "campos": [
             Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
+            # Sem coluna própria: os autores ficam na tabela livro_autor (ver _salvar_autores).
+            Campo("autores", None, "texto", "Autor(es)", tamanho=500),
             _EDITORA,
             _ESTANTE,
             _PAGINAS,
@@ -120,7 +122,12 @@ def _sql_leitura(tipo):
     tabela = CAMPOS[tipo]["tabela"]
     colunas = ["t.codigo"]
     for c in CAMPOS[tipo]["campos"]:
-        if c.tipo == "referencia":
+        if c.coluna is None:
+            colunas.append(
+                "(SELECT string_agg(p.nome, ', ' ORDER BY p.nome) FROM livro_autor la "
+                "JOIN pessoa p ON p.id = la.pessoa_id WHERE la.livro_id = t.id) AS " + c.chave
+            )
+        elif c.tipo == "referencia":
             colunas.append(
                 f"(SELECT r.nome FROM {c.tabela_ref} r WHERE r.id = t.{c.coluna}) AS {c.chave}"
             )
@@ -218,6 +225,8 @@ def salvar(app, tipo, codigo, valores):
     with app.extensions["db_pool_escrita"].connection() as conn:
         with conn.transaction():
             for campo in cfg["campos"]:
+                if campo.coluna is None:
+                    continue  # autores: gravados à parte, em livro_autor
                 valor = valores.get(campo.chave)
                 if campo.tipo == "referencia":
                     valor = _id_da_referencia(conn, campo.tabela_ref, valor)
@@ -225,10 +234,36 @@ def salvar(app, tipo, codigo, valores):
                 atribuicoes.append(f"{campo.coluna} = %({campo.chave})s")
 
             cursor = conn.execute(
-                f"UPDATE {cfg['tabela']} SET {', '.join(atribuicoes)} WHERE codigo = %(codigo)s",
+                f"UPDATE {cfg['tabela']} SET {', '.join(atribuicoes)} WHERE codigo = %(codigo)s RETURNING id",
                 params,
             )
-            return cursor.rowcount == 1
+            linha = cursor.fetchone()
+            if linha is None:
+                return False
+            if "autores" in valores:
+                _salvar_autores(conn, linha["id"], valores["autores"])
+            return True
+
+
+def _salvar_autores(conn, livro_id, texto):
+    """Substitui os autores do livro pelos nomes informados, separados por vírgula.
+
+    Nome que ainda não existe é cadastrado em pessoa.
+    """
+    nomes = []
+    for nome in (texto or "").split(","):
+        nome = nome.strip()
+        if nome and nome not in nomes:
+            nomes.append(nome)
+    conn.execute("DELETE FROM livro_autor WHERE livro_id = %s", (livro_id,))
+    for nome in nomes:
+        pessoa = conn.execute("SELECT id FROM pessoa WHERE nome = %s", (nome,)).fetchone()
+        if pessoa is None:
+            pessoa = conn.execute("INSERT INTO pessoa (nome) VALUES (%s) RETURNING id", (nome,)).fetchone()
+        conn.execute(
+            "INSERT INTO livro_autor (livro_id, pessoa_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (livro_id, pessoa["id"]),
+        )
 
 
 # Troca de capa: a imagem vai para CAPAS_DIR/<pasta>/<codigo>.<ext> e o banco aponta para ela.

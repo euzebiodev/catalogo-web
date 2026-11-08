@@ -44,7 +44,14 @@ def criar_app():
 
 def limpar_teste():
     with psycopg.connect(URL) as conexao:
+        conexao.execute(
+            "DELETE FROM livro_autor WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
+        )
         conexao.execute("DELETE FROM livro WHERE codigo = 'T9999'")
+        conexao.execute(
+            """DELETE FROM pessoa p WHERE p.nome LIKE 'Autor de teste%'
+               AND NOT EXISTS (SELECT 1 FROM livro_autor la WHERE la.pessoa_id = p.id)"""
+        )
         conexao.execute("DELETE FROM editora WHERE nome = 'Editora de teste'")
         # Senha trocada pelo site do usuário de teste (não o login real).
         conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
@@ -73,6 +80,9 @@ class EdicaoTest(unittest.TestCase):
             )
         with psycopg.connect(URL) as conexao:
             conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+            conexao.execute(
+                "DELETE FROM livro_autor WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
+            )
         self.cliente = criar_app().test_client()
 
     def token_da_pagina(self, url):
@@ -151,6 +161,27 @@ class EdicaoTest(unittest.TestCase):
         self.assertEqual(aquisicao.isoformat(), "2024-05-01")
         self.assertEqual(nota, "Observação de teste")
         self.assertEqual(editora, "Editora de teste")
+
+    def test_autores_sao_substituidos_pelo_formulario(self):
+        self.entrar()
+        token = self.token_da_pagina("/livros/T9999/editar")
+        dados = self.dados_do_formulario(autores="Autor de teste A, Autor de teste B", csrf=token)
+        resposta = self.cliente.post("/livros/T9999/editar", data=dados)
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            nomes = [
+                linha[0]
+                for linha in conexao.execute(
+                    """SELECT p.nome FROM livro_autor la
+                         JOIN pessoa p ON p.id = la.pessoa_id
+                         JOIN livro l ON l.id = la.livro_id
+                        WHERE l.codigo = 'T9999' ORDER BY p.nome"""
+                ).fetchall()
+            ]
+        self.assertEqual(nomes, ["Autor de teste A", "Autor de teste B"])
+        # A página mostra o campo já preenchido.
+        html = self.cliente.get("/livros/T9999/editar").get_data(as_text=True)
+        self.assertIn("Autor de teste A, Autor de teste B", html)
 
     def test_isbn_repetido_mostra_mensagem(self):
         self.entrar()
