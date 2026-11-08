@@ -101,6 +101,36 @@ Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora
 | `/api/<tipo>/<codigo>` | JSON com os dados do item, usado pelo popup |
 | `/capas/<arquivo>` | serve as imagens de capa |
 
+## Edição manual e login
+
+Cada livro, gibi e vinil tem um link "Editar campos" no popup. A edição mexe nos campos próprios do item (título, editora, ISBN, preço, observações etc.). Autores, gêneros e faixas ainda não são editados por aqui. Editora, estante e gravadora são informadas pelo nome: se o nome não existir, é cadastrado.
+
+A edição fica **desligada** até que todas estas variáveis estejam no `.env` (ou no arquivo de configuração do servidor):
+
+- `DATABASE_URL_ESCRITA`: conexão do usuário `catalogo_escrita`, que só tem escrita nas colunas editáveis (`db/migracoes/003_permissoes_escrita.sql`).
+- `CATALOGO_ADMIN_USUARIO`: nome do usuário que entra.
+- `CATALOGO_ADMIN_SENHA_HASH`: hash da senha, não a senha em si. Gere com:
+  ```powershell
+  .\.venv\Scripts\python.exe -c "from werkzeug.security import generate_password_hash as g; print(g('SUA_SENHA'))"
+  ```
+- `CATALOGO_SECRET_KEY`: texto longo e aleatório, fixo. Com ele vazio, a edição não liga, porque sem chave fixa o login falha entre os processos do gunicorn.
+
+Na página "Editar campos" também dá para trocar a capa: arrastando o arquivo para a área, clicando nela ou colando uma imagem com Ctrl+V. Aceita JPG, PNG e WEBP, até 5 MB. A capa vai para `CAPAS_DIR` (`livro/`, `gibi/` ou `lp/`), então a pasta precisa ser gravável pelo serviço.
+
+Depois do login, o link "Alterar senha" troca a senha. A nova senha fica guardada no banco, na tabela `admin_senha`, e passa a valer no lugar de `CATALOGO_ADMIN_SENHA_HASH`.
+
+Migrações da edição, em ordem, a aplicar uma vez em cada banco: `003_permissoes_escrita.sql`, `004_senha_admin.sql` e `005_permissao_capa.sql`. O papel `catalogo_escrita` precisa existir antes.
+
+Sem essas variáveis, o site continua só de leitura e a página "Entrar" avisa que a edição não está configurada. A sessão dura 8 horas. Cada senha errada espera 1 segundo. Os formulários têm token contra pedidos forjados.
+
+O site roda em HTTP na rede local, então a senha trafega sem criptografia. Não publique esta porta fora da rede sem HTTPS na frente.
+
+Testes da edição (rodam no banco do `.env`, com um registro temporário T9999 que é removido no fim):
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -t . -v
+```
+
 ## Ajustes
 
 - Itens por página: `ITENS_POR_PAGINA` em `app/__init__.py` (padrão 24).

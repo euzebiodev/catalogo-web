@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block titulo %}Editar {{ valores.titulo or codigo }} · Catálogo{% endblock %}
+
+{% block conteudo %}
+  <p class="voltar"><a href="{{ url_for('catalogo.lista', tipo=tipo) }}">← Voltar para {{ abas[tipo].nome }}</a></p>
+
+  <h2 class="editar-titulo">{{ valores.titulo or codigo }}</h2>
+  <p class="detalhe-codigo">{{ codigo }}</p>
+
+  {% if salvo %}
+    <p class="aviso ok" role="status">Alterações salvas.</p>
+  {% endif %}
+  {% if erros %}
+    <ul class="aviso erro" role="alert">
+      {% for erro in erros %}
+        <li>{{ erro }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if capa_trocada %}
+    <p class="aviso ok" role="status">Capa trocada.</p>
+  {% endif %}
+  {% if capa_erro %}
+    <p class="aviso erro" role="alert">{{ capa_erro }}</p>
+  {% endif %}
+
+  <section class="editar-capa">
+    <div class="editar-capa-imagem">
+      {% if capa_arquivo %}
+        <img src="{{ url_for('catalogo.capa', arquivo=capa_arquivo) }}" alt="Capa atual de {{ valores.titulo or codigo }}">
+      {% else %}
+        <div class="sem-capa">Sem capa</div>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('catalogo.trocar_capa', tipo=tipo, codigo=codigo) }}"
+          enctype="multipart/form-data" class="editar-capa-form">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label class="zona-capa" id="zona-capa">
+        <strong>Arraste a imagem aqui</strong>
+        <span>ou clique para escolher. Também pode colar uma imagem com Ctrl+V (JPG, PNG ou WEBP, até 5 MB)</span>
+        <input type="file" name="capa" id="campo-capa" accept="image/jpeg,image/png,image/webp" class="campo-oculto">
+      </label>
+      <button type="submit">Trocar capa</button>
+    </form>
+  </section>
+
+  <form method="post" action="{{ url_for('catalogo.salvar_edicao', tipo=tipo, codigo=codigo) }}" class="editar-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <div class="editar-grade">
+      {% for campo in campos %}
+        <label class="{{ 'editar-largo' if campo.longo }}">
+          <span>{{ campo.rotulo }}{% if campo.obrigatorio %} *{% endif %}</span>
+          {% if campo.longo %}
+            <textarea name="{{ campo.chave }}" rows="4">{{ valores[campo.chave] }}</textarea>
+          {% else %}
+            <input type="{{ campo.tipo_entrada }}" name="{{ campo.chave }}"
+                   value="{{ valores[campo.chave] }}"
+                   {% if campo.modo_teclado %}inputmode="{{ campo.modo_teclado }}"{% endif %}
+                   {% if campo.obrigatorio %}required{% endif %}>
+          {% endif %}
+        </label>
+      {% endfor %}
+    </div>
+    <div class="editar-acoes">
+      <button type="submit">Salvar alterações</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block fim %}
+<script>
+  (() => {
+    const area = document.getElementById("zona-capa");
+    const campo = document.getElementById("campo-capa");
+    if (!area || !campo) return;
+    const formulario = campo.form;
+
+    // Escolher pelo seletor também envia direto, como ao soltar o arquivo.
+    campo.addEventListener("change", () => {
+      if (campo.files.length) formulario.requestSubmit();
+    });
+
+    // Ctrl+V com uma imagem na área de transferência vira a nova capa.
+    // Se o foco estiver num campo de texto, a colagem segue normal.
+    document.addEventListener("paste", (e) => {
+      const digitando = e.target.closest && e.target.closest("input, textarea");
+      if (digitando) return;
+      const item = Array.from(e.clipboardData?.items || []).find(
+        (i) => i.kind === "file" && i.type.startsWith("image/")
+      );
+      if (!item) return;
+      const arquivo = item.getAsFile();
+      if (!arquivo) return;
+      e.preventDefault();
+      const transferencia = new DataTransfer();
+      transferencia.items.add(arquivo);
+      campo.files = transferencia.files;
+      formulario.requestSubmit();
+    });
+
+    // Impede o navegador de abrir o arquivo quando ele é solto fora da área.
+    ["dragover", "drop"].forEach((evento) =>
+      window.addEventListener(evento, (e) => e.preventDefault())
+    );
+
+    area.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      area.classList.add("arrastando");
+    });
+    area.addEventListener("dragleave", (e) => {
+      if (!area.contains(e.relatedTarget)) area.classList.remove("arrastando");
+    });
+    area.addEventListener("drop", (e) => {
+      e.preventDefault();
+      area.classList.remove("arrastando");
+      const arquivo = e.dataTransfer.files[0];
+      if (!arquivo) return;
+      // Coloca o arquivo solto no campo e envia, como se tivesse sido escolhido.
+      const transferencia = new DataTransfer();
+      transferencia.items.add(arquivo);
+      campo.files = transferencia.files;
+      formulario.requestSubmit();
+    });
+  })();
+</script>
+{% endblock %}

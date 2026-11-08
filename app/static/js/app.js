@@ -42,6 +42,14 @@
 
     texto.append(titulo, codigo, lista);
 
+    if (dados.editavel) {
+      const editar = document.createElement("a");
+      editar.className = "detalhe-editar";
+      editar.href = `/${tipo}/${encodeURIComponent(dados.codigo)}/editar`;
+      editar.textContent = "Editar campos";
+      texto.append(editar);
+    }
+
     if (dados.faixas && dados.faixas.length) {
       texto.append(montarFaixas(dados.faixas));
     }

@@ -451,7 +451,215 @@ body {
   text-decoration: underline;
 }
 
+/* Sessão: "Entrar" e "Sair" no cabeçalho. */
+.topo-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sessao {
+  margin: 0;
+}
+
+.sessao-link,
+.sessao-botao {
+  padding: 6px 12px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--fundo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sessao-link:hover,
+.sessao-botao:hover {
+  border-color: var(--destaque);
+}
+
+.entrar {
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+.entrar h2,
+.editar-titulo {
+  margin: 8px 0 4px;
+  font-size: 1.2rem;
+}
+
+.entrar-form,
+.editar-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.entrar-form label,
+.editar-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+
+.editar-form input,
+.editar-form textarea,
+.entrar-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+}
+
+.editar-form textarea {
+  resize: vertical;
+}
+
+.editar-grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.editar-largo {
+  grid-column: 1 / -1;
+}
+
+.editar-acoes button,
+.entrar-form button {
+  justify-self: start;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--raio);
+  background: var(--destaque);
+  color: var(--fundo);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editar-capa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.zona-capa {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  min-height: 140px;
+  padding: 20px;
+  border: 2px dashed #d99a6c;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.zona-capa strong {
+  font-size: 1.05rem;
+}
+
+.zona-capa span {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.zona-capa:hover,
+.zona-capa.arrastando {
+  background: rgba(217, 154, 108, 0.15);
+}
+
+.campo-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.editar-capa-imagem img {
+  display: block;
+  width: 140px;
+  height: auto;
+  border-radius: 4px;
+}
+
+.editar-capa-form {
+  display: grid;
+  gap: 12px;
+  flex: 1 1 260px;
+}
+
+.editar-capa-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.voltar {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.voltar a {
+  color: var(--texto-suave);
+}
+
+.aviso {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--borda);
+}
+
+.aviso.ok {
+  border-color: #3d7a3d;
+}
+
+.aviso.erro {
+  border-color: #a03030;
+  color: #a03030;
+}
+
+.aviso.erro ul,
+ul.aviso {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.detalhe-editar {
+  display: inline-block;
+  margin: 0 0 12px;
+  color: var(--destaque);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.detalhe-editar:hover,
+.detalhe-editar:focus-visible {
+  text-decoration: underline;
+}
+
 @media (max-width: 600px) {
+  .editar-grade {
+    grid-template-columns: 1fr;
+  }
+
   .grade {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 12px;

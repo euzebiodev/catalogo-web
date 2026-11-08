@@ -1,8 +1,10 @@
 import math
+import time
 
-from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_from_directory, session, url_for
+from psycopg.errors import UndefinedTable, UniqueViolation
 
-from . import catalogo
+from . import auth, catalogo, edicao
 
 bp = Blueprint("catalogo", __name__)
 
@@ -10,6 +12,162 @@ bp = Blueprint("catalogo", __name__)
 @bp.get("/")
 def inicio():
     return redirect(url_for("catalogo.lista", tipo="livros"))
+
+
+@bp.route("/entrar", methods=["GET", "POST"])
+def entrar():
+    proxima = auth.proxima_segura(request.values.get("proxima", ""))
+    if not auth.edicao_disponivel(current_app):
+        return render_template("entrar.html", abas=catalogo.TIPOS, tipo_ativo=None,
+                               proxima=proxima, indisponivel=True, erro=None)
+
+    erro = None
+    if request.method == "POST":
+        auth.conferir_csrf()
+        usuario = request.form.get("usuario", "")
+        senha = request.form.get("senha", "")
+        if auth.conferir_senha(current_app, usuario, senha):
+            session.clear()
+            session["logado"] = True
+            session.permanent = True
+            return redirect(proxima)
+        # Pausa curta a cada senha errada, para dificultar tentativas em série.
+        time.sleep(1)
+        erro = "Usuário ou senha inválidos."
+
+    return render_template("entrar.html", abas=catalogo.TIPOS, tipo_ativo=None,
+                           proxima=proxima, indisponivel=False, erro=erro)
+
+
+@bp.post("/sair")
+def sair():
+    auth.conferir_csrf()
+    session.clear()
+    return redirect(url_for("catalogo.inicio"))
+
+
+@bp.route("/alterar-senha", methods=["GET", "POST"])
+@auth.exige_login
+def alterar_senha():
+    erro = None
+    sucesso = False
+    if request.method == "POST":
+        auth.conferir_csrf()
+        atual = request.form.get("senha_atual", "")
+        nova = request.form.get("senha_nova", "")
+        confirmacao = request.form.get("senha_confirmacao", "")
+
+        if not auth.senha_correta(current_app, atual):
+            # Mesma pausa do login, para não servir de teste de senha.
+            time.sleep(1)
+            erro = "A senha atual está errada."
+        elif len(nova) < 8:
+            erro = "A nova senha precisa ter pelo menos 8 caracteres."
+        elif nova != confirmacao:
+            erro = "A confirmação não é igual à nova senha."
+        elif nova == atual:
+            erro = "A nova senha precisa ser diferente da atual."
+        else:
+            try:
+                auth.trocar_senha(current_app, nova)
+                sucesso = True
+            except UndefinedTable:
+                erro = "A troca de senha ainda não está disponível neste servidor (migração 004 pendente)."
+
+    return render_template(
+        "alterar_senha.html",
+        abas=catalogo.TIPOS,
+        tipo_ativo=None,
+        erro=erro,
+        sucesso=sucesso,
+    ), (400 if erro else 200)
+
+
+def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
+    valores = edicao.ler_para_edicao(current_app, tipo, codigo)
+    if valores is None:
+        abort(404)
+    return render_template(
+        "editar.html",
+        abas=catalogo.TIPOS,
+        tipo_ativo=tipo,
+        tipo=tipo,
+        codigo=codigo,
+        campos=edicao.campos_formulario(tipo),
+        valores=valores,
+        erros=[],
+        salvo=request.args.get("salvo"),
+        capa_arquivo=edicao.capa_atual(current_app, tipo, codigo),
+        capa_erro=capa_erro,
+        capa_trocada=capa_trocada,
+    )
+
+
+@bp.get("/<tipo>/<codigo>/editar")
+@auth.exige_login
+def editar(tipo, codigo):
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+    return _pagina_editar(tipo, codigo, capa_trocada=bool(request.args.get("capa")))
+
+
+@bp.post("/<tipo>/<codigo>/capa")
+@auth.exige_login
+def trocar_capa(tipo, codigo):
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+    auth.conferir_csrf()
+
+    arquivo = request.files.get("capa")
+    if arquivo is None or not arquivo.filename:
+        erro = "Escolha um arquivo de imagem."
+    else:
+        # Lê um byte além do limite, para saber se o arquivo passou dele.
+        dados = arquivo.read(edicao.TAMANHO_MAX_CAPA + 1)
+        try:
+            if not edicao.trocar_capa(current_app, tipo, codigo, dados):
+                abort(404)
+            return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, capa=1))
+        except ValueError as falha:
+            erro = str(falha)
+
+    return _pagina_editar(tipo, codigo, capa_erro=erro), 400
+
+
+@bp.post("/<tipo>/<codigo>/editar")
+@auth.exige_login
+def salvar_edicao(tipo, codigo):
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+    auth.conferir_csrf()
+
+    valores, erros = edicao.ler_formulario(tipo, request.form)
+    if not erros:
+        try:
+            if not edicao.salvar(current_app, tipo, codigo, valores):
+                abort(404)
+        except UniqueViolation:
+            erros.append("Já existe outro item com este ISBN.")
+
+    if erros:
+        # Mostra o que foi digitado, para não perder a edição.
+        return render_template(
+            "editar.html",
+            abas=catalogo.TIPOS,
+            tipo_ativo=tipo,
+            tipo=tipo,
+            codigo=codigo,
+            campos=edicao.campos_formulario(tipo),
+            valores={chave: request.form.get(chave, "") for chave in valores_brutos(tipo)},
+            erros=erros,
+            salvo=None,
+        ), 400
+
+    return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, salvo=1))
+
+
+def valores_brutos(tipo):
+    return [campo["chave"] for campo in edicao.campos_formulario(tipo)]
 
 
 @bp.get("/<tipo>")
@@ -53,6 +211,8 @@ def api_detalhe(tipo, codigo):
     dados = catalogo.detalhe(current_app, tipo, codigo)
     if dados is None:
         abort(404)
+    # O popup mostra o link de edição só para quem já entrou.
+    dados["editavel"] = auth.edicao_disponivel(current_app) and auth.logado()
     return jsonify(dados)
 
 

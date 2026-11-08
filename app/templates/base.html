@@ -9,7 +9,18 @@
 </head>
 <body>
   <header class="topo">
-    <h1>Catálogo pessoal</h1>
+    <div class="topo-linha">
+      <h1>Catálogo pessoal</h1>
+      {% if logado() %}
+        <a class="sessao-link" href="{{ url_for('catalogo.alterar_senha') }}">Alterar senha</a>
+        <form method="post" action="{{ url_for('catalogo.sair') }}" class="sessao">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button type="submit" class="sessao-botao">Sair</button>
+        </form>
+      {% elif edicao_ativa %}
+        <a class="sessao-link" href="{{ url_for('catalogo.entrar') }}">Entrar</a>
+      {% endif %}
+    </div>
     <nav class="abas" aria-label="Coleções">
       {% for chave, aba in abas.items() %}
         <a href="{{ url_for('catalogo.lista', tipo=chave) }}"

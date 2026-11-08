@@ -2,15 +2,21 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 
-def init_db(app):
-    pool = ConnectionPool(
-        app.config["DATABASE_URL"],
+def _pool(url, tamanho):
+    return ConnectionPool(
+        url,
         min_size=1,
-        max_size=5,
+        max_size=tamanho,
         kwargs={"row_factory": dict_row},
         open=True,
     )
-    app.extensions["db_pool"] = pool
+
+
+def init_db(app):
+    app.extensions["db_pool"] = _pool(app.config["DATABASE_URL"], 5)
+    # Pool de escrita só existe quando a edição está configurada.
+    if app.config.get("DATABASE_URL_ESCRITA"):
+        app.extensions["db_pool_escrita"] = _pool(app.config["DATABASE_URL_ESCRITA"], 2)
 
 
 def fetch_all(app, sql, params=()):
