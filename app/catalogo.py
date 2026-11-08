@@ -268,6 +268,14 @@ SQL_DETALHE = {
     """,
 }
 
+SQL_FIGURINHAS_MARCADAS = """
+    SELECT m.numero
+    FROM album_figurinha_marcada m
+    JOIN album_figurinha a ON a.id = m.album_id
+    WHERE a.codigo = %s
+    ORDER BY m.numero
+"""
+
 # Faixas com compositores e link de clipe. Só os tipos que têm faixas aparecem aqui.
 SQL_FAIXAS = {
     "vinil": """
@@ -438,6 +446,16 @@ def detalhe(app, tipo, codigo):
         "capa_fonte": linha["capa_fonte"],
         "campos": campos,
         "faixas": faixas,
+        "figurinhas": _figurinhas(app, linha, codigo) if tipo == "album" else None,
+    }
+
+
+def _figurinhas(app, linha, codigo):
+    """Total de figurinhas do álbum e os números marcados, para o botão do popup."""
+    marcadas = fetch_all(app, SQL_FIGURINHAS_MARCADAS, (codigo,))
+    return {
+        "total": linha["numero_figurinhas"] or 0,
+        "marcadas": [m["numero"] for m in marcadas],
     }
 
 

@@ -37,6 +37,9 @@
       termo.textContent = campo.rotulo;
       const valor = document.createElement("dd");
       valor.textContent = campo.valor;
+      if (campo.rotulo === "Completo" && dados.figurinhas) {
+        valor.append(" ", botaoVerFigurinhas(dados));
+      }
       lista.append(termo, valor);
     }
 
@@ -62,6 +65,59 @@
     }
 
     corpo.append(figura, texto);
+  }
+
+  function botaoVerFigurinhas(dados) {
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "botao-secundario";
+    botao.textContent = "Ver figurinhas";
+    botao.addEventListener("click", () => abrirFigurinhas(dados));
+    return botao;
+  }
+
+  // Segundo popup, por cima do detalhe: mostra cada número e destaca os marcados.
+  function abrirFigurinhas(dados) {
+    const { total, marcadas } = dados.figurinhas;
+    const marcadasSet = new Set(marcadas);
+
+    let caixa = document.getElementById("figurinhas-popup");
+    if (!caixa) {
+      caixa = document.createElement("dialog");
+      caixa.id = "figurinhas-popup";
+      caixa.className = "dialogo-figurinhas";
+      caixa.addEventListener("click", (e) => {
+        if (e.target === caixa) caixa.close();
+      });
+      document.body.append(caixa);
+    }
+    caixa.replaceChildren();
+
+    const titulo = document.createElement("h3");
+    titulo.textContent = `Figurinhas de ${dados.titulo}`;
+
+    const resumo = document.createElement("p");
+    resumo.textContent = total > 0
+      ? `${marcadas.length} de ${total} marcadas`
+      : "Total de figurinhas não informado.";
+
+    const grade = document.createElement("div");
+    grade.className = "grade-figurinhas";
+    for (let n = 1; n <= total; n++) {
+      const numero = document.createElement("span");
+      numero.className = "figurinha-mostra" + (marcadasSet.has(n) ? " marcada" : "");
+      numero.textContent = n;
+      grade.append(numero);
+    }
+
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "botao-secundario";
+    fechar.textContent = "Fechar";
+    fechar.addEventListener("click", () => caixa.close());
+
+    caixa.append(titulo, resumo, grade, fechar);
+    caixa.showModal();
   }
 
   function montarFaixas(faixas) {

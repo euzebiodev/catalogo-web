@@ -664,6 +664,23 @@ body {
   font-size: 0.95rem;
 }
 
+.figurinha-mostra {
+  display: grid;
+  place-items: center;
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  opacity: 0.45;
+  font-size: 0.9rem;
+}
+
+.figurinha-mostra.marcada {
+  opacity: 1;
+  background: rgba(224, 168, 120, 0.25);
+  border-color: #e0a878;
+  font-weight: 600;
+}
+
 .voltar {
   margin: 0 0 8px;
   font-size: 0.9rem;
