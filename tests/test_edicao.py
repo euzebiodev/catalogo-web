@@ -470,5 +470,209 @@ class SerieGibiTest(unittest.TestCase):
         self.assertIn("Use uma imagem JPG, PNG ou WEBP", resposta.get_data(as_text=True))
 
 
+def limpar_novos():
+    """Remove o que os testes de cadastro novo criam (códigos T9997 e F9997)."""
+    with psycopg.connect(URL) as conexao:
+        conexao.execute(
+            "DELETE FROM livro_autor WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9997')"
+        )
+        conexao.execute("DELETE FROM livro WHERE codigo = 'T9997'")
+        conexao.execute("DELETE FROM album_figurinha WHERE codigo = 'F9997'")
+        conexao.execute("DELETE FROM pessoa WHERE nome IN ('Autor novo A', 'Autor novo B')")
+        conexao.execute("DELETE FROM editora WHERE nome = 'Editora nova de teste'")
+        conexao.execute("DELETE FROM estante WHERE nome = 'Estante nova de teste'")
+    for arquivo in ("livro/T9997.png", "album/F9997.png"):
+        caminho = os.path.join(CAPAS_TESTE, arquivo)
+        if os.path.exists(caminho):
+            os.remove(caminho)
+
+
+DADOS_LIVRO_NOVO = {
+    "titulo": "Livro novo de teste",
+    "autores": "Autor novo A, Autor novo B",
+    "editora": "Editora nova de teste",
+    "estante": "Estante nova de teste",
+    "paginas": "412",
+    "ano_publicacao": "2019",
+    "lingua": "Português",
+    "edicao": "2ª edição",
+    "encadernacao": "Brochura",
+    "isbn10": "0306406152",
+    "isbn13": "9780306406157",
+    "clube_do_livro": "Sim",
+    "conservacao": "Bom",
+    "aquisicao_data": "2024-03-10",
+    "preco": "59,90",
+    "capa_fonte": "Editora",
+    "nota": "Observação do cadastro novo",
+    "sinopse": "Sinopse de teste.",
+}
+
+
+class NovoItemTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        limpar_novos()
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_novos()
+
+    def setUp(self):
+        # Cada teste começa sem os itens criados pelos anteriores.
+        limpar_novos()
+        self.cliente = criar_app().test_client()
+        self.cliente.post(
+            "/entrar",
+            data={
+                "csrf": self.token_da_pagina("/entrar"),
+                "usuario": "admin",
+                "senha": SENHA,
+                "proxima": "/livros",
+            },
+        )
+
+    def token_da_pagina(self, url):
+        html = self.cliente.get(url).get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def formulario(self, **alterados):
+        dados = {campo["chave"]: "" for campo in edicao.campos_formulario("livros")}
+        dados["codigo"] = "T9997"
+        dados.update(DADOS_LIVRO_NOVO)
+        dados["csrf"] = self.token_da_pagina("/livros/novo")
+        dados.update(alterados)
+        return dados
+
+    def existe(self, tabela, codigo):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute(f"SELECT 1 FROM {tabela} WHERE codigo = %s", (codigo,)).fetchone()
+
+    def test_sem_login_redireciona_para_entrar(self):
+        resposta = criar_app().test_client().get("/livros/novo")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/entrar", resposta.headers["Location"])
+
+    def test_pagina_sugere_proximo_codigo(self):
+        html = self.cliente.get("/livros/novo").get_data(as_text=True)
+        self.assertRegex(html, r'name="codigo" value="L\d{4}"')
+
+    def test_cadastra_livro_com_todos_os_campos(self):
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(), content_type="multipart/form-data")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/livros/T9997/editar", resposta.headers["Location"])
+        self.assertIn("novo=1", resposta.headers["Location"])
+
+        with psycopg.connect(URL) as conexao:
+            linha = conexao.execute(
+                """SELECT l.titulo, l.paginas, l.ano_publicacao, l.lingua, l.edicao, l.encadernacao,
+                          l.isbn10, l.isbn13, l.clube_do_livro, l.conservacao, l.aquisicao_data,
+                          l.preco, l.capa_fonte, l.nota, l.sinopse, ed.nome, es.nome
+                     FROM livro l
+                     LEFT JOIN editora ed ON ed.id = l.editora_id
+                     LEFT JOIN estante es ON es.id = l.estante_id
+                    WHERE l.codigo = 'T9997'"""
+            ).fetchone()
+            autores = [
+                r[0] for r in conexao.execute(
+                    """SELECT p.nome FROM livro_autor la JOIN pessoa p ON p.id = la.pessoa_id
+                        JOIN livro l ON l.id = la.livro_id WHERE l.codigo = 'T9997' ORDER BY p.nome"""
+                ).fetchall()
+            ]
+        titulo, paginas, ano, lingua, edicao_, enc, isbn10, isbn13, clube, cons, aquisicao, preco, fonte, nota, sinopse, editora, estante = linha
+        self.assertEqual(titulo, "Livro novo de teste")
+        self.assertEqual(paginas, 412)
+        self.assertEqual(ano, 2019)
+        self.assertEqual(lingua, "Português")
+        self.assertEqual(edicao_, "2ª edição")
+        self.assertEqual(enc, "Brochura")
+        self.assertEqual(isbn10, "0306406152")
+        self.assertEqual(isbn13, "9780306406157")
+        self.assertEqual(clube, "Sim")
+        self.assertEqual(cons, "Bom")
+        self.assertEqual(aquisicao.isoformat(), "2024-03-10")
+        self.assertEqual(str(preco), "59.90")
+        self.assertEqual(fonte, "Editora")
+        self.assertEqual(nota, "Observação do cadastro novo")
+        self.assertEqual(sinopse, "Sinopse de teste.")
+        self.assertEqual(editora, "Editora nova de teste")
+        self.assertEqual(estante, "Estante nova de teste")
+        self.assertEqual(autores, ["Autor novo A", "Autor novo B"])
+
+    def test_codigo_em_minusculas_vira_maiusculas(self):
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(codigo="t9997"))
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(self.existe("livro", "T9997"))
+
+    def test_codigo_repetido_nao_cria_de_novo(self):
+        self.cliente.post("/livros/novo", data=self.formulario())
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(isbn10="", isbn13=""))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Já existe um item com este código", resposta.get_data(as_text=True))
+        with psycopg.connect(URL) as conexao:
+            total = conexao.execute("SELECT count(*) FROM livro WHERE codigo = 'T9997'").fetchone()[0]
+        self.assertEqual(total, 1)
+
+    def test_codigo_invalido_nao_cria(self):
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(codigo="abc"))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Código: use uma letra", resposta.get_data(as_text=True))
+        self.assertFalse(self.existe("livro", "ABC"))
+
+    def test_campo_invalido_mantem_digitacao_e_nao_cria(self):
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(paginas="muitas"))
+        html = resposta.get_data(as_text=True)
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Páginas: use só números", html)
+        self.assertIn('value="Livro novo de teste"', html)
+        self.assertFalse(self.existe("livro", "T9997"))
+
+    def test_isbn_de_outro_item_nao_cria(self):
+        # ISBN já usado por um livro do catálogo (L0033).
+        resposta = self.cliente.post("/livros/novo", data=self.formulario(isbn13="978-8535929881"))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Já existe um item com este código ou com este ISBN", resposta.get_data(as_text=True))
+        self.assertFalse(self.existe("livro", "T9997"))
+
+    def test_capa_invalida_nao_cria_o_item(self):
+        dados = self.formulario(capa=(io.BytesIO(b"texto"), "x.png"))
+        resposta = self.cliente.post("/livros/novo", data=dados, content_type="multipart/form-data")
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Capa: use uma imagem JPG, PNG ou WEBP", resposta.get_data(as_text=True))
+        self.assertFalse(self.existe("livro", "T9997"))
+
+    def test_capa_valida_e_gravada_com_o_item(self):
+        dados = self.formulario(capa=(io.BytesIO(PNG_MINIMO), "capa.png"))
+        resposta = self.cliente.post("/livros/novo", data=dados, content_type="multipart/form-data")
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            capa = conexao.execute("SELECT capa_arquivo FROM livro WHERE codigo = 'T9997'").fetchone()[0]
+        self.assertEqual(capa, "livro/T9997.png")
+        self.assertTrue(os.path.exists(os.path.join(CAPAS_TESTE, "livro", "T9997.png")))
+
+    def test_cadastra_album_e_calcula_completo(self):
+        dados = {
+            "csrf": self.token_da_pagina("/album/novo"),
+            "codigo": "F9997",
+            "titulo": "Álbum novo de teste",
+            "numero_figurinhas": "80",
+            "tem_extra": "on",
+            "extra_descricao": "Cards",
+            "extra_total": "5",
+            "notas": "Teste",
+        }
+        resposta = self.cliente.post("/album/novo", data=dados)
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            linha = conexao.execute(
+                """SELECT numero_figurinhas, tem_extra, extra_descricao, extra_total, completo
+                     FROM album_figurinha WHERE codigo = 'F9997'"""
+            ).fetchone()
+        self.assertEqual(linha, (80, True, "Cards", 5, False))
+
+    def test_tipo_desconhecido_da_404(self):
+        self.assertEqual(self.cliente.get("/revistas/novo").status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

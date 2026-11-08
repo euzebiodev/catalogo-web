@@ -6,6 +6,7 @@ ainda não existir, ele é cadastrado.
 """
 
 import os
+import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import NamedTuple, Optional
@@ -243,39 +244,89 @@ def _id_da_referencia(conn, tabela, nome):
     return linha["id"]
 
 
+def _pares_para_banco(conn, cfg, valores):
+    """Coluna -> valor, já convertido para o banco (referências viram id). Autores ficam de fora."""
+    pares = {}
+    for campo in cfg["campos"]:
+        if campo.coluna is None:
+            continue  # autores: gravados à parte, em livro_autor
+        valor = valores.get(campo.chave)
+        if campo.tipo == "referencia":
+            valor = _id_da_referencia(conn, campo.tabela_ref, valor)
+        pares[campo.coluna] = valor
+    return pares
+
+
 def salvar(app, tipo, codigo, valores):
     """Grava os campos do item numa transação. False se o item não existe."""
     cfg = CAMPOS[tipo]
-    atribuicoes = []
-    params = {"codigo": codigo}
 
     with app.extensions["db_pool_escrita"].connection() as conn:
         with conn.transaction():
-            for campo in cfg["campos"]:
-                if campo.coluna is None:
-                    continue  # autores: gravados à parte, em livro_autor
-                valor = valores.get(campo.chave)
-                if campo.tipo == "referencia":
-                    valor = _id_da_referencia(conn, campo.tabela_ref, valor)
-                params[campo.chave] = valor
-                atribuicoes.append(f"{campo.coluna} = %({campo.chave})s")
-
+            pares = _pares_para_banco(conn, cfg, valores)
+            atribuicoes = [f"{coluna} = %({coluna})s" for coluna in pares]
             cursor = conn.execute(
                 f"UPDATE {cfg['tabela']} SET {', '.join(atribuicoes)} WHERE codigo = %(codigo)s RETURNING id",
-                params,
+                {**pares, "codigo": codigo},
             )
             linha = cursor.fetchone()
             if linha is None:
                 return False
-            if "autores" in valores:
-                _salvar_autores(conn, linha["id"], valores["autores"])
-            if tipo == "album":
-                # Mudar o número de figurinhas pode mudar se o álbum está completo.
-                _recalcular_completo(conn, linha["id"])
-            if tipo == "gibis":
-                # Mudar o total da série pode mudar se ela está completa.
-                _recalcular_serie_completa(conn, linha["id"])
+            _depois_de_gravar(conn, tipo, linha["id"], valores)
             return True
+
+
+def criar(app, tipo, codigo, valores):
+    """Insere um item novo com o código informado. Levanta UniqueViolation se código ou ISBN já existem."""
+    cfg = CAMPOS[tipo]
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        with conn.transaction():
+            pares = _pares_para_banco(conn, cfg, valores)
+            pares["codigo"] = codigo
+            colunas = ", ".join(pares)
+            marcas = ", ".join(f"%({coluna})s" for coluna in pares)
+            linha = conn.execute(
+                f"INSERT INTO {cfg['tabela']} ({colunas}) VALUES ({marcas}) RETURNING id",
+                pares,
+            ).fetchone()
+            _depois_de_gravar(conn, tipo, linha["id"], valores)
+
+
+def _depois_de_gravar(conn, tipo, item_id, valores):
+    if "autores" in valores:
+        _salvar_autores(conn, item_id, valores["autores"])
+    if tipo == "album":
+        # Total de figurinhas define se o álbum está completo.
+        _recalcular_completo(conn, item_id)
+    if tipo == "gibis":
+        # Total da série define se ela está completa.
+        _recalcular_serie_completa(conn, item_id)
+
+
+# Código sugerido para item novo: letra usual do tipo + número seguinte (o usuário pode trocar).
+PREFIXO_NOVO = {"livros": ("L", 4), "gibis": ("H", 4), "vinil": ("V", 3), "album": ("F", 4)}
+PADRAO_CODIGO = re.compile(r"^[A-Z][0-9]{2,6}$")
+
+
+def proximo_codigo(app, tipo):
+    prefixo, largura = PREFIXO_NOVO[tipo]
+    linhas = fetch_all(
+        app,
+        f"SELECT codigo FROM {CAMPOS[tipo]['tabela']} WHERE codigo ~ %s",
+        (f"^{prefixo}[0-9]+$",),
+    )
+    maior = max((int(linha["codigo"][len(prefixo):]) for linha in linhas), default=0)
+    return f"{prefixo}{maior + 1:0{largura}d}"
+
+
+def validar_codigo(bruto):
+    """Devolve (codigo, erro). Código: uma letra e de 2 a 6 números, como L0062 ou V002."""
+    codigo = (bruto or "").strip().upper()
+    if not codigo:
+        return codigo, "Código: preencha este campo"
+    if not PADRAO_CODIGO.match(codigo):
+        return codigo, "Código: use uma letra e de 2 a 6 números (ex.: L0070)"
+    return codigo, None
 
 
 def _recalcular_serie_completa(conn, gibi_id):

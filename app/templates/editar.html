@@ -9,7 +9,7 @@
   <p class="detalhe-codigo">{{ codigo }}</p>
 
   {% if salvo %}
-    <p class="aviso ok" role="status">Alterações salvas.</p>
+    <p class="aviso ok" role="status">{{ 'Item cadastrado.' if request.args.get('novo') else 'Alterações salvas.' }}</p>
   {% endif %}
   {% if erros %}
     <ul class="aviso erro" role="alert">

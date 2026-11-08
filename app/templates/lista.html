@@ -50,7 +50,11 @@
     </div>
   </form>
 
-  <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}{% if filtros %} encontrado{{ '' if total == 1 else 's' }}{% endif %}</p>
+  <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}{% if filtros %} encontrado{{ '' if total == 1 else 's' }}{% endif %}
+    {% if logado() %}
+      · <a class="botao-secundario" href="{{ url_for('catalogo.novo', tipo=tipo_ativo) }}">+ Novo item</a>
+    {% endif %}
+  </p>
 
   {% if logado() %}
     <div class="selecao">

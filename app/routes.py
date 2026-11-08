@@ -239,6 +239,63 @@ def valores_brutos(tipo):
     return [campo["chave"] for campo in edicao.campos_formulario(tipo)]
 
 
+def _pagina_novo(tipo, codigo, valores, erros):
+    return render_template(
+        "novo.html",
+        abas=catalogo.TIPOS,
+        tipo_ativo=tipo,
+        tipo=tipo,
+        codigo=codigo,
+        campos=edicao.campos_formulario(tipo),
+        valores=valores,
+        erros=erros,
+    )
+
+
+@bp.route("/<tipo>/novo", methods=["GET", "POST"])
+@auth.exige_login
+def novo(tipo):
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+
+    if request.method == "GET":
+        codigo = edicao.proximo_codigo(current_app, tipo)
+        valores = {chave: "" for chave in valores_brutos(tipo)}
+        return _pagina_novo(tipo, codigo, valores, [])
+
+    auth.conferir_csrf()
+    codigo, erro_codigo = edicao.validar_codigo(request.form.get("codigo", ""))
+    valores, erros = edicao.ler_formulario(tipo, request.form)
+    if erro_codigo:
+        erros.insert(0, erro_codigo)
+
+    capa = None
+    arquivo = request.files.get("capa")
+    if arquivo is not None and arquivo.filename:
+        # Confere a capa antes de gravar o item, para não criar item sem capa por erro de arquivo.
+        dados = arquivo.read(edicao.TAMANHO_MAX_CAPA + 1)
+        if len(dados) > edicao.TAMANHO_MAX_CAPA:
+            erros.append("Capa: a imagem passa de 5 MB.")
+        elif edicao.tipo_da_imagem(dados) is None:
+            erros.append("Capa: use uma imagem JPG, PNG ou WEBP.")
+        else:
+            capa = dados
+
+    if not erros:
+        try:
+            edicao.criar(current_app, tipo, codigo, valores)
+        except UniqueViolation:
+            erros.append("Já existe um item com este código ou com este ISBN.")
+        else:
+            if capa is not None:
+                edicao.trocar_capa(current_app, tipo, codigo, capa)
+            return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, salvo=1, novo=1))
+
+    # Mostra o que foi digitado, para não perder o cadastro.
+    digitados = {chave: request.form.get(chave, "") for chave in valores_brutos(tipo)}
+    return _pagina_novo(tipo, codigo, digitados, erros), 400
+
+
 @bp.get("/<tipo>")
 def lista(tipo):
     if tipo not in catalogo.TIPOS:
