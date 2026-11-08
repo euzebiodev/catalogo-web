@@ -235,6 +235,18 @@ def salvar_edicao(tipo, codigo):
     return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, salvo=1))
 
 
+@bp.post("/<tipo>/<codigo>/excluir")
+@auth.exige_login
+def excluir_item(tipo, codigo):
+    """Exclusão lógica: o item some do site, mas o registro continua no banco."""
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+    auth.conferir_csrf()
+    if not edicao.excluir(current_app, tipo, codigo):
+        abort(404)
+    return redirect(url_for("catalogo.lista", tipo=tipo))
+
+
 def valores_brutos(tipo):
     return [campo["chave"] for campo in edicao.campos_formulario(tipo)]
 

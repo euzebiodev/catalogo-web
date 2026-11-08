@@ -674,5 +674,98 @@ class NovoItemTest(unittest.TestCase):
         self.assertEqual(self.cliente.get("/revistas/novo").status_code, 404)
 
 
+class ExcluirItemTest(unittest.TestCase):
+    """Exclusão lógica: o item some do site e o registro continua no banco."""
+
+    @classmethod
+    def setUpClass(cls):
+        limpar_excluido()
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_excluido()
+
+    def setUp(self):
+        limpar_excluido()
+        edicao.criar(criar_app(), "livros", "T9996", {"titulo": "Livro sumido de teste", "autores": ""})
+        self.cliente = criar_app().test_client()
+        self.cliente.post(
+            "/entrar",
+            data={
+                "csrf": self.token_da_pagina("/entrar"),
+                "usuario": "admin",
+                "senha": SENHA,
+                "proxima": "/livros",
+            },
+        )
+
+    def token_da_pagina(self, url):
+        html = self.cliente.get(url).get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def excluido_no_banco(self):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute("SELECT excluido FROM livro WHERE codigo = 'T9996'").fetchone()
+
+    def test_item_aparece_antes_de_excluir(self):
+        html = self.cliente.get("/livros?q=Livro+sumido").get_data(as_text=True)
+        self.assertIn('data-codigo="T9996"', html)
+
+    def test_excluir_marca_sem_apagar(self):
+        token = self.token_da_pagina("/livros/T9996/editar")
+        resposta = self.cliente.post("/livros/T9996/excluir", data={"csrf": token})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(self.excluido_no_banco(), (True,))
+
+    def test_item_excluido_some_da_lista_e_da_busca(self):
+        token = self.token_da_pagina("/livros/T9996/editar")
+        self.cliente.post("/livros/T9996/excluir", data={"csrf": token})
+        html = self.cliente.get("/livros?q=Livro+sumido").get_data(as_text=True)
+        self.assertNotIn('data-codigo="T9996"', html)
+
+    def test_item_excluido_nao_tem_pagina_popup_nem_edicao(self):
+        token = self.token_da_pagina("/livros/T9996/editar")
+        self.cliente.post("/livros/T9996/excluir", data={"csrf": token})
+        self.assertEqual(self.cliente.get("/livros/T9996").status_code, 404)
+        self.assertEqual(self.cliente.get("/api/livros/T9996").status_code, 404)
+        self.assertEqual(self.cliente.get("/livros/T9996/editar").status_code, 404)
+
+    def test_item_excluido_nao_aceita_edicao_nem_troca_de_capa(self):
+        token = self.token_da_pagina("/livros/T9996/editar")
+        self.cliente.post("/livros/T9996/excluir", data={"csrf": token})
+        dados = {"csrf": token, "titulo": "Outro titulo", "autores": ""}
+        for chave in edicao.campos_formulario("livros"):
+            dados.setdefault(chave["chave"], "")
+        self.assertEqual(self.cliente.post("/livros/T9996/editar", data=dados).status_code, 404)
+        with psycopg.connect(URL) as conexao:
+            titulo = conexao.execute("SELECT titulo FROM livro WHERE codigo = 'T9996'").fetchone()
+        self.assertEqual(titulo, ("Livro sumido de teste",))
+
+    def test_excluir_exige_login(self):
+        sem_login = criar_app().test_client()
+        resposta = sem_login.post("/livros/T9996/excluir", data={"csrf": "x"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(self.excluido_no_banco(), (False,))
+
+    def test_excluir_exige_csrf(self):
+        resposta = self.cliente.post("/livros/T9996/excluir", data={"csrf": "errado"})
+        self.assertEqual(resposta.status_code, 400)
+        self.assertEqual(self.excluido_no_banco(), (False,))
+
+    def test_excluir_item_inexistente_da_404(self):
+        token = self.token_da_pagina("/livros/T9996/editar")
+        self.assertEqual(self.cliente.post("/livros/T0000/excluir", data={"csrf": token}).status_code, 404)
+
+    def test_pagina_de_edicao_mostra_botao_excluir(self):
+        html = self.cliente.get("/livros/T9996/editar").get_data(as_text=True)
+        self.assertIn("/livros/T9996/excluir", html)
+        self.assertIn("Excluir item", html)
+
+
+def limpar_excluido():
+    with psycopg.connect(URL) as conexao:
+        conexao.execute("DELETE FROM livro WHERE codigo = 'T9996'")
+
+
 if __name__ == "__main__":
     unittest.main()

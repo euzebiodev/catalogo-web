@@ -100,6 +100,13 @@
     </div>
   </form>
 
+  <form method="post" action="{{ url_for('catalogo.excluir_item', tipo=tipo, codigo=codigo) }}"
+        class="editar-excluir"
+        onsubmit="return confirm('Excluir este item? Ele some do site, mas continua no banco.');">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="botao-perigo">Excluir item</button>
+  </form>
+
   {% if figurinhas %}
     <dialog id="dialogo-figurinhas" class="dialogo-figurinhas">
       <form method="post" action="{{ url_for('catalogo.salvar_figurinhas', tipo=tipo, codigo=codigo) }}">

@@ -634,6 +634,27 @@ body {
   background: rgba(224, 168, 120, 0.15);
 }
 
+/* Ação destrutiva (excluir item): separada do resto da página. */
+.editar-excluir {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(224, 168, 120, 0.3);
+}
+
+.botao-perigo {
+  background: transparent;
+  color: #e57373;
+  border: 1px solid #e57373;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.botao-perigo:hover {
+  background: rgba(229, 115, 115, 0.15);
+}
+
 .dialogo-figurinhas {
   width: min(680px, calc(100% - 32px));
   max-height: 85vh;

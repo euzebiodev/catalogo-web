@@ -232,7 +232,7 @@ SQL_DETALHE = {
         FROM livro l
         LEFT JOIN editora ed ON ed.id = l.editora_id
         LEFT JOIN estante est ON est.id = l.estante_id
-        WHERE l.codigo = %s
+        WHERE l.codigo = %s AND NOT l.excluido
     """,
     "gibis": """
         SELECT g.codigo, g.titulo, g.categoria, g.paginas, g.ano_publicacao,
@@ -250,7 +250,7 @@ SQL_DETALHE = {
         FROM gibi g
         LEFT JOIN editora ed ON ed.id = g.editora_id
         LEFT JOIN estante est ON est.id = g.estante_id
-        WHERE g.codigo = %s
+        WHERE g.codigo = %s AND NOT g.excluido
     """,
     "vinil": """
         SELECT v.codigo, v.titulo, v.numero_musicas, v.ano_publicacao, v.numero_catalogo,
@@ -265,7 +265,7 @@ SQL_DETALHE = {
         FROM lp_vinil v
         LEFT JOIN gravadora gr ON gr.id = v.gravadora_id
         LEFT JOIN estante est ON est.id = v.estante_id
-        WHERE v.codigo = %s
+        WHERE v.codigo = %s AND NOT v.excluido
     """,
     "album": """
         SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
@@ -275,7 +275,7 @@ SQL_DETALHE = {
         FROM album_figurinha a
         LEFT JOIN editora ed ON ed.id = a.editora_id
         LEFT JOIN estante est ON est.id = a.estante_id
-        WHERE a.codigo = %s
+        WHERE a.codigo = %s AND NOT a.excluido
     """,
 }
 
@@ -414,9 +414,14 @@ def campos_filtro(app, tipo, filtros):
     return campos
 
 
+# Alias da tabela principal de cada tipo nas consultas.
+ALIAS_TABELA = {"livros": "l", "gibis": "g", "vinil": "v", "album": "a"}
+
+
 def montar_filtro(tipo, filtros):
     """Monta o WHERE e os parâmetros. Os nomes de coluna vêm só do código; os valores vão como parâmetros."""
-    condicoes = []
+    # Itens excluídos (exclusão lógica) nunca aparecem.
+    condicoes = [f"NOT {ALIAS_TABELA[tipo]}.excluido"]
     params = {}
 
     if "q" in filtros:

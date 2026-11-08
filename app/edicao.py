@@ -155,7 +155,7 @@ def _sql_leitura(tipo):
             )
         else:
             colunas.append(f"t.{c.coluna} AS {c.chave}")
-    return f"SELECT {', '.join(colunas)} FROM {tabela} t WHERE t.codigo = %s"
+    return f"SELECT {', '.join(colunas)} FROM {tabela} t WHERE t.codigo = %s AND NOT t.excluido"
 
 
 def _como_texto(campo, valor):
@@ -266,7 +266,8 @@ def salvar(app, tipo, codigo, valores):
             pares = _pares_para_banco(conn, cfg, valores)
             atribuicoes = [f"{coluna} = %({coluna})s" for coluna in pares]
             cursor = conn.execute(
-                f"UPDATE {cfg['tabela']} SET {', '.join(atribuicoes)} WHERE codigo = %(codigo)s RETURNING id",
+                f"UPDATE {cfg['tabela']} SET {', '.join(atribuicoes)}"
+                " WHERE codigo = %(codigo)s AND NOT excluido RETURNING id",
                 {**pares, "codigo": codigo},
             )
             linha = cursor.fetchone()
@@ -274,6 +275,16 @@ def salvar(app, tipo, codigo, valores):
                 return False
             _depois_de_gravar(conn, tipo, linha["id"], valores)
             return True
+
+
+def excluir(app, tipo, codigo):
+    """Exclusão lógica: marca o item como excluído, sem apagar o registro. False se não existe ou já está excluído."""
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        cursor = conn.execute(
+            f"UPDATE {CAMPOS[tipo]['tabela']} SET excluido = true WHERE codigo = %s AND NOT excluido",
+            (codigo,),
+        )
+        return cursor.rowcount == 1
 
 
 def criar(app, tipo, codigo, valores):
@@ -599,7 +610,7 @@ def trocar_capa(app, tipo, codigo, dados):
     try:
         with app.extensions["db_pool_escrita"].connection() as conn:
             cursor = conn.execute(
-                f"UPDATE {CAMPOS[tipo]['tabela']} SET capa_arquivo = %s WHERE codigo = %s",
+                f"UPDATE {CAMPOS[tipo]['tabela']} SET capa_arquivo = %s WHERE codigo = %s AND NOT excluido",
                 (relativo, codigo),
             )
             atualizou = cursor.rowcount == 1
