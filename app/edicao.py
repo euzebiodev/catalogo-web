@@ -57,6 +57,7 @@ CAMPOS = {
             _PRECO,
             _FONTE_CAPA,
             Campo("nota", "nota", "longo", "Observações", tamanho=5000),
+            Campo("sinopse", "sinopse", "longo", "Sinopse", tamanho=5000),
         ],
     },
     "gibis": {

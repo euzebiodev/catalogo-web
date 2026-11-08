@@ -170,7 +170,7 @@ SQL_DETALHE = {
     "livros": """
         SELECT l.codigo, l.titulo, l.paginas, l.ano_publicacao, l.isbn10, l.isbn13,
                l.encadernacao, l.lingua, l.edicao, l.clube_do_livro, l.conservacao,
-               l.aquisicao_data, l.preco, l.nota, l.capa_arquivo, l.capa_fonte,
+               l.aquisicao_data, l.preco, l.sinopse, l.nota, l.capa_arquivo, l.capa_fonte,
                ed.nome AS editora, est.nome AS estante,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM livro_autor la JOIN pessoa p ON p.id = la.pessoa_id
@@ -249,6 +249,7 @@ CAMPOS_POPUP = {
         ("Aquisição", "aquisicao_data"),
         ("Preço", "preco"),
         ("Observações", "nota"),
+        ("Sinopse", "sinopse"),
     ],
     "gibis": [
         ("Autores e equipe", "pessoas"),
