@@ -98,12 +98,25 @@ BUSCA = {
 
 COLUNA_ANO = {"livros": "l.ano_publicacao", "gibis": "g.ano_publicacao", "vinil": "v.ano_publicacao"}
 
+def _sem_acento(coluna):
+    """Chave de ordenação do título sem acento e sem maiúscula.
+
+    O banco usa a collation C, que compara bytes: sem isto, 'Água Viva' iria para o fim
+    porque o 'Á' vem depois de todas as letras sem acento.
+    """
+    return (
+        f"lower(translate({coluna}, "
+        "'ÁÀÂÃÄáàâãäÉÈÊËéèêëÍÌÎÏíìîïÓÒÔÕÖóòôõöÚÙÛÜúùûüÇçÑñ', "
+        "'AAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUUuuuuCcNn'))"
+    )
+
+
 # Ordenações da lista, por aba. A chave vai na URL (?ordem=); o SQL vem só deste código.
 # O desempate é sempre o código. "autor" usa o alias "subtitulo" da consulta de lista.
 ORDENACOES = {
     "livros": {
         "codigo": ("Código", "l.codigo"),
-        "titulo": ("Título", "l.titulo"),
+        "titulo": ("Título", _sem_acento("l.titulo")),
         "autor": ("Autor", "subtitulo"),
         "editora": ("Editora", "(SELECT ed.nome FROM editora ed WHERE ed.id = l.editora_id)"),
         "ano_asc": ("Ano (mais antigo)", "l.ano_publicacao ASC NULLS LAST"),
@@ -111,7 +124,7 @@ ORDENACOES = {
     },
     "gibis": {
         "codigo": ("Código", "g.codigo"),
-        "titulo": ("Título", "g.titulo"),
+        "titulo": ("Título", _sem_acento("g.titulo")),
         "autor": ("Autor ou equipe", "subtitulo"),
         "editora": ("Editora", "(SELECT ed.nome FROM editora ed WHERE ed.id = g.editora_id)"),
         "ano_asc": ("Ano (mais antigo)", "g.ano_publicacao ASC NULLS LAST"),
@@ -119,7 +132,7 @@ ORDENACOES = {
     },
     "vinil": {
         "codigo": ("Código", "v.codigo"),
-        "titulo": ("Título", "v.titulo"),
+        "titulo": ("Título", _sem_acento("v.titulo")),
         "autor": ("Artista", "subtitulo"),
         "gravadora": ("Gravadora", "(SELECT gr.nome FROM gravadora gr WHERE gr.id = v.gravadora_id)"),
         "ano_asc": ("Ano (mais antigo)", "v.ano_publicacao ASC NULLS LAST"),
