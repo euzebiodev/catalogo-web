@@ -344,5 +344,31 @@ class FigurinhasTest(unittest.TestCase):
         self.assertEqual(numeros, [1, 2, 3])
 
 
+class ExtrasTest(FigurinhasTest):
+    """Itens extras do álbum F9999: marcação com o mesmo limite de 1 até o total."""
+
+    def test_extras_so_aceitam_numeros_ate_o_total(self):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute(
+                "UPDATE album_figurinha SET tem_extra = true, extra_total = 2 WHERE codigo = 'F9999'"
+            )
+            conexao.execute(
+                "DELETE FROM album_extra_marcado WHERE album_id = (SELECT id FROM album_figurinha WHERE codigo = 'F9999')"
+            )
+        html = self.cliente.get("/album/F9999/editar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        resposta = self.cliente.post(
+            "/album/F9999/extras",
+            data={"csrf": token, "numero": ["1", "2", "5"]},
+        )
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            numeros = [r[0] for r in conexao.execute(
+                "SELECT m.numero FROM album_extra_marcado m JOIN album_figurinha a ON a.id = m.album_id "
+                "WHERE a.codigo = 'F9999' ORDER BY m.numero").fetchall()]
+            conexao.execute("UPDATE album_figurinha SET tem_extra = false, extra_total = NULL WHERE codigo = 'F9999'")
+        self.assertEqual(numeros, [1, 2])
+
+
 if __name__ == "__main__":
     unittest.main()

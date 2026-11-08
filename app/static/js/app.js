@@ -38,7 +38,10 @@
       const valor = document.createElement("dd");
       valor.textContent = campo.valor;
       if (campo.rotulo === "Completo" && dados.figurinhas) {
-        valor.append(" ", botaoVerFigurinhas(dados));
+        valor.append(" ", botaoVer(dados, dados.figurinhas, "Figurinhas", "Ver figurinhas"));
+      }
+      if (campo.rotulo === "Conteúdo extra" && dados.extras) {
+        valor.append(" ", botaoVer(dados, dados.extras, "Itens extras", "Ver extras"));
       }
       lista.append(termo, valor);
     }
@@ -67,18 +70,18 @@
     corpo.append(figura, texto);
   }
 
-  function botaoVerFigurinhas(dados) {
+  function botaoVer(dados, parte, rotulo, texto) {
     const botao = document.createElement("button");
     botao.type = "button";
     botao.className = "botao-secundario";
-    botao.textContent = "Ver figurinhas";
-    botao.addEventListener("click", () => abrirFigurinhas(dados));
+    botao.textContent = texto;
+    botao.addEventListener("click", () => abrirMarcados(dados, parte, rotulo));
     return botao;
   }
 
   // Segundo popup, por cima do detalhe: mostra cada número e destaca os marcados.
-  function abrirFigurinhas(dados) {
-    const { total, marcadas } = dados.figurinhas;
+  function abrirMarcados(dados, parte, rotulo) {
+    const { total, marcadas } = parte;
     const marcadasSet = new Set(marcadas);
 
     let caixa = document.getElementById("figurinhas-popup");
@@ -94,12 +97,12 @@
     caixa.replaceChildren();
 
     const titulo = document.createElement("h3");
-    titulo.textContent = `Figurinhas de ${dados.titulo}`;
+    titulo.textContent = `${rotulo} de ${dados.titulo}`;
 
     const resumo = document.createElement("p");
     resumo.textContent = total > 0
-      ? `${marcadas.length} de ${total} marcadas`
-      : "Total de figurinhas não informado.";
+      ? `${marcadas.length} de ${total} marcados`
+      : "Total não informado.";
 
     const grade = document.createElement("div");
     grade.className = "grade-figurinhas";

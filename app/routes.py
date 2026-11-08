@@ -102,6 +102,8 @@ def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
         capa_trocada=capa_trocada,
         figurinhas=edicao.figurinhas_do_album(current_app, codigo) if tipo == "album" else None,
         figurinhas_salvas=bool(request.args.get("figurinhas")),
+        extras=edicao.extras_do_album(current_app, codigo) if tipo == "album" else None,
+        extras_salvos=bool(request.args.get("extras")),
     )
 
 
@@ -149,6 +151,18 @@ def salvar_figurinhas(tipo, codigo):
     if not edicao.salvar_figurinhas(current_app, codigo, marcadas):
         abort(404)
     return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, figurinhas=1))
+
+
+@bp.post("/<tipo>/<codigo>/extras")
+@auth.exige_login
+def salvar_extras(tipo, codigo):
+    if tipo != "album":
+        abort(404)
+    auth.conferir_csrf()
+    marcados = [int(bruto) for bruto in request.form.getlist("numero") if bruto.isdigit()]
+    if not edicao.salvar_extras(current_app, codigo, marcados):
+        abort(404)
+    return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, extras=1))
 
 
 @bp.post("/<tipo>/<codigo>/editar")

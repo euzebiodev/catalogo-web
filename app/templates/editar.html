@@ -28,6 +28,9 @@
   {% if figurinhas_salvas %}
     <p class="aviso ok" role="status">Figurinhas salvas.</p>
   {% endif %}
+  {% if extras_salvos %}
+    <p class="aviso ok" role="status">Itens extras salvos.</p>
+  {% endif %}
 
   <section class="editar-capa">
     <div class="editar-capa-imagem">
@@ -74,6 +77,12 @@
             <button type="button" class="botao-secundario" id="abrir-figurinhas">Marcar figurinhas</button>
           </div>
         {% endif %}
+        {% if campo.chave == 'extra_total' and extras %}
+          <div class="figurinhas-status">
+            <span>Itens extras: <strong>{{ extras.marcadas|length }}</strong> de {{ extras.total }} marcados</span>
+            <button type="button" class="botao-secundario" id="abrir-extras">Marcar extras</button>
+          </div>
+        {% endif %}
       {% endfor %}
     </div>
     <div class="editar-acoes">
@@ -106,6 +115,28 @@
             <button type="button" class="botao-secundario" data-fechar-figurinhas>Fechar</button>
           </div>
         {% endif %}
+      </form>
+    </dialog>
+  {% endif %}
+
+  {% if extras and extras.total > 0 %}
+    <dialog id="dialogo-extras" class="dialogo-figurinhas">
+      <form method="post" action="{{ url_for('catalogo.salvar_extras', tipo=tipo, codigo=codigo) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <h3>Itens extras de {{ valores.titulo or codigo }}</h3>
+        <p>Marque os itens extras que você já tem.</p>
+        <div class="grade-figurinhas">
+          {% for n in range(1, extras.total + 1) %}
+            <label class="figurinha">
+              <span>{{ n }}</span>
+              <input type="checkbox" name="numero" value="{{ n }}" {% if n in extras.marcadas %}checked{% endif %}>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="editar-acoes">
+          <button type="submit">Salvar extras</button>
+          <button type="button" class="botao-secundario" data-fechar-extras>Fechar</button>
+        </div>
       </form>
     </dialog>
   {% endif %}
@@ -177,6 +208,20 @@
       botao.addEventListener("click", () => dialogo.close())
     );
     // Clicar fora da caixa fecha o diálogo.
+    dialogo.addEventListener("click", (e) => {
+      if (e.target === dialogo) dialogo.close();
+    });
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-extras");
+    const abrir = document.getElementById("abrir-extras");
+    if (!dialogo || !abrir) return;
+    abrir.addEventListener("click", () => dialogo.showModal());
+    dialogo.querySelectorAll("[data-fechar-extras]").forEach((botao) =>
+      botao.addEventListener("click", () => dialogo.close())
+    );
     dialogo.addEventListener("click", (e) => {
       if (e.target === dialogo) dialogo.close();
     });

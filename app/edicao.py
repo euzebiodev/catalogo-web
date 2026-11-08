@@ -106,6 +106,9 @@ CAMPOS = {
             _EDITORA,
             _ESTANTE,
             Campo("numero_figurinhas", "numero_figurinhas", "inteiro", "Número de figurinhas", faixa=(0, 5000)),
+            Campo("tem_extra", "tem_extra", "booleano", "Tem conteúdo extra"),
+            Campo("extra_descricao", "extra_descricao", "longo", "Descrição do conteúdo extra", tamanho=1000),
+            Campo("extra_total", "extra_total", "inteiro", "Número de itens extras", faixa=(0, 5000)),
             _ANO,
             _CONSERVACAO,
             _AQUISICAO,
@@ -326,6 +329,43 @@ def _recalcular_completo(conn, album_id):
             WHERE a.id = %s""",
         (album_id,),
     )
+
+
+def extras_do_album(app, codigo):
+    """Itens extras do álbum: total e os marcados. None se o álbum não existe."""
+    linha = fetch_one(
+        app,
+        "SELECT id, COALESCE(extra_total, 0) AS total FROM album_figurinha WHERE codigo = %s",
+        (codigo,),
+    )
+    if linha is None:
+        return None
+    marcados = fetch_all(
+        app,
+        "SELECT numero FROM album_extra_marcado WHERE album_id = %s ORDER BY numero",
+        (linha["id"],),
+    )
+    return {"total": linha["total"], "marcadas": {m["numero"] for m in marcados}}
+
+
+def salvar_extras(app, codigo, marcados):
+    """Grava os itens extras marcados. Números fora de 1 até o total são ignorados."""
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        with conn.transaction():
+            linha = conn.execute(
+                "SELECT id, COALESCE(extra_total, 0) AS total FROM album_figurinha WHERE codigo = %s",
+                (codigo,),
+            ).fetchone()
+            if linha is None:
+                return False
+            validos = sorted({n for n in marcados if 1 <= n <= linha["total"]})
+            conn.execute("DELETE FROM album_extra_marcado WHERE album_id = %s", (linha["id"],))
+            for numero in validos:
+                conn.execute(
+                    "INSERT INTO album_extra_marcado (album_id, numero) VALUES (%s, %s)",
+                    (linha["id"], numero),
+                )
+            return True
 
 
 def _salvar_autores(conn, livro_id, texto):

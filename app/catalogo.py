@@ -260,6 +260,7 @@ SQL_DETALHE = {
     "album": """
         SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
                a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte, a.completo,
+               a.tem_extra, a.extra_descricao, a.extra_total,
                ed.nome AS editora, est.nome AS estante
         FROM album_figurinha a
         LEFT JOIN editora ed ON ed.id = a.editora_id
@@ -267,6 +268,14 @@ SQL_DETALHE = {
         WHERE a.codigo = %s
     """,
 }
+
+SQL_EXTRAS_MARCADOS = """
+    SELECT m.numero
+    FROM album_extra_marcado m
+    JOIN album_figurinha a ON a.id = m.album_id
+    WHERE a.codigo = %s
+    ORDER BY m.numero
+"""
 
 SQL_FIGURINHAS_MARCADAS = """
     SELECT m.numero
@@ -347,6 +356,9 @@ CAMPOS_POPUP = {
         ("Ano", "ano_publicacao"),
         ("Número de figurinhas", "numero_figurinhas"),
         ("Completo", "completo"),
+        ("Conteúdo extra", "tem_extra"),
+        ("Descrição do extra", "extra_descricao"),
+        ("Itens extras", "extra_total"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
         ("Aquisição", "aquisicao_data"),
@@ -430,6 +442,9 @@ def detalhe(app, tipo, codigo):
     linha = fetch_one(app, SQL_DETALHE[tipo], (codigo,))
     if linha is None:
         return None
+    if tipo == "album":
+        # Há conteúdo extra quando a caixa está marcada ou quando há itens extras informados.
+        linha["tem_extra"] = bool(linha["tem_extra"]) or bool(linha["extra_total"])
 
     campos = []
     for rotulo, chave in CAMPOS_POPUP[tipo]:
@@ -447,6 +462,7 @@ def detalhe(app, tipo, codigo):
         "campos": campos,
         "faixas": faixas,
         "figurinhas": _figurinhas(app, linha, codigo) if tipo == "album" else None,
+        "extras": _extras(app, linha, codigo) if tipo == "album" and linha["tem_extra"] else None,
     }
 
 
@@ -456,6 +472,15 @@ def _figurinhas(app, linha, codigo):
     return {
         "total": linha["numero_figurinhas"] or 0,
         "marcadas": [m["numero"] for m in marcadas],
+    }
+
+
+def _extras(app, linha, codigo):
+    """Itens extras do álbum e os marcados, para o botão do popup."""
+    marcados = fetch_all(app, SQL_EXTRAS_MARCADOS, (codigo,))
+    return {
+        "total": linha["extra_total"] or 0,
+        "marcadas": [m["numero"] for m in marcados],
     }
 
 
