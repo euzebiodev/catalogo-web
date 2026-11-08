@@ -746,6 +746,96 @@ body {
   outline-offset: 2px;
 }
 
+.grade-serie {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 12px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 4px;
+}
+
+.numero-serie {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 0.85rem;
+}
+
+.numero-serie.marcado {
+  border-color: #e0a878;
+  background: rgba(224, 168, 120, 0.15);
+}
+
+.numero-serie:focus {
+  outline: 2px solid #e0a878;
+  outline-offset: 2px;
+}
+
+.numero-serie.arrastando,
+.numero-serie.capa-nova {
+  border-style: dashed;
+  border-color: #e0a878;
+  background: rgba(224, 168, 120, 0.12);
+}
+
+.numero-serie-n {
+  font-weight: 600;
+}
+
+.numero-serie img {
+  width: 100%;
+  max-width: 96px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.numero-serie-sem {
+  width: 96px;
+  aspect-ratio: 2 / 3;
+  display: grid;
+  place-items: center;
+  color: #888;
+  border: 1px dashed #555;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.numero-serie-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.numero-serie-arquivo {
+  width: 100%;
+  font-size: 0.7rem;
+}
+
+.numero-serie-isbn {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+}
+
+.numero-serie-isbn input {
+  width: 100%;
+  font-size: 0.7rem;
+  padding: 3px 4px;
+}
+
+.numero-serie-isbnx {
+  font-family: Consolas, monospace;
+  font-size: 0.7rem;
+  color: #aaa;
+  word-break: break-all;
+}
+
 .voltar {
   margin: 0 0 8px;
   font-size: 0.9rem;

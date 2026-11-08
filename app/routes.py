@@ -107,6 +107,8 @@ def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
         figurinhas_salvas=bool(request.args.get("figurinhas")),
         extras=edicao.extras_do_album(current_app, codigo) if tipo == "album" else None,
         extras_salvos=bool(request.args.get("extras")),
+        serie=edicao.serie_do_gibi(current_app, codigo) if tipo == "gibis" else None,
+        serie_salva=bool(request.args.get("serie")),
     )
 
 
@@ -166,6 +168,39 @@ def salvar_extras(tipo, codigo):
     if not edicao.salvar_extras(current_app, codigo, marcados):
         abort(404)
     return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, extras=1))
+
+
+@bp.post("/<tipo>/<codigo>/serie")
+@auth.exige_login
+def salvar_serie(tipo, codigo):
+    if tipo != "gibis":
+        abort(404)
+    auth.conferir_csrf()
+    marcados = {int(bruto) for bruto in request.form.getlist("numero") if bruto.isdigit()}
+    capas = {}
+    for chave, arquivo in request.files.items(multi=True):
+        if not chave.startswith("capa_") or not arquivo.filename:
+            continue
+        numero = chave[len("capa_"):]
+        if numero.isdigit():
+            # Lê um byte além do limite, para saber se passou dele.
+            capas[int(numero)] = arquivo.read(edicao.TAMANHO_MAX_CAPA + 1)
+    # ISBNs de cada número: campos isbn10_<n> e isbn13_<n>; vazio vira None.
+    isbns = {}
+    for chave in request.form:
+        if chave.startswith(("isbn10_", "isbn13_")):
+            tipo_isbn, _, numero = chave.partition("_")
+            if numero.isdigit():
+                par = list(isbns.get(int(numero), (None, None)))
+                valor = request.form.get(chave, "").strip() or None
+                par[0 if tipo_isbn == "isbn10" else 1] = valor
+                isbns[int(numero)] = tuple(par)
+    try:
+        if not edicao.salvar_serie(current_app, codigo, marcados, capas, isbns):
+            abort(404)
+    except ValueError as falha:
+        return _pagina_editar(tipo, codigo, capa_erro=str(falha)), 400
+    return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, serie=1))
 
 
 @bp.post("/<tipo>/<codigo>/editar")

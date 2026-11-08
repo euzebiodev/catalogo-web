@@ -67,6 +67,9 @@ CAMPOS = {
         "campos": [
             Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
             Campo("categoria", "categoria", "texto", "Categoria"),
+            Campo("numero_edicao", "numero_edicao", "inteiro", "Número da edição/volume", faixa=(0, 100000)),
+            Campo("serie_fechada", "serie_fechada", "booleano", "Série já fechada"),
+            Campo("serie_total", "serie_total", "inteiro", "Total de números da série", faixa=(0, 5000)),
             _EDITORA,
             _ESTANTE,
             _PAGINAS,
@@ -269,7 +272,112 @@ def salvar(app, tipo, codigo, valores):
             if tipo == "album":
                 # Mudar o número de figurinhas pode mudar se o álbum está completo.
                 _recalcular_completo(conn, linha["id"])
+            if tipo == "gibis":
+                # Mudar o total da série pode mudar se ela está completa.
+                _recalcular_serie_completa(conn, linha["id"])
             return True
+
+
+def _recalcular_serie_completa(conn, gibi_id):
+    """Série completa = série fechada, com total, e todos os números de 1 até o total marcados."""
+    conn.execute(
+        """UPDATE gibi g
+              SET serie_completa = (g.serie_fechada AND COALESCE(g.serie_total, 0) > 0
+                  AND (SELECT count(*) FROM gibi_serie_item s
+                        WHERE s.gibi_id = g.id AND s.marcado AND s.numero BETWEEN 1 AND COALESCE(g.serie_total, 0))
+                      = COALESCE(g.serie_total, 0))
+            WHERE g.id = %s""",
+        (gibi_id,),
+    )
+
+
+def serie_do_gibi(app, codigo):
+    """Números da série fechada do gibi: total e, para cada número, se está marcado e a capa.
+
+    None se o gibi não existe ou não tem série fechada com total informado.
+    """
+    linha = fetch_one(
+        app,
+        "SELECT id, COALESCE(serie_total, 0) AS total, serie_fechada, serie_completa FROM gibi WHERE codigo = %s",
+        (codigo,),
+    )
+    if linha is None or not linha["serie_fechada"] or linha["total"] == 0:
+        return None
+    registros = fetch_all(
+        app,
+        "SELECT numero, marcado, capa_arquivo, isbn10, isbn13 FROM gibi_serie_item WHERE gibi_id = %s",
+        (linha["id"],),
+    )
+    por_numero = {r["numero"]: r for r in registros}
+    itens = []
+    for n in range(1, linha["total"] + 1):
+        r = por_numero.get(n)
+        itens.append({
+            "numero": n,
+            "marcado": bool(r and r["marcado"]),
+            "capa": r["capa_arquivo"] if r else None,
+            "isbn10": r["isbn10"] if r else None,
+            "isbn13": r["isbn13"] if r else None,
+        })
+    return {
+        "total": linha["total"],
+        "fechada": linha["serie_fechada"],
+        "completa": linha["serie_completa"],
+        "itens": itens,
+    }
+
+
+def salvar_serie(app, codigo, marcados, capas, isbns=None):
+    """Grava os números marcados e as capas enviadas (capas: número -> bytes).
+
+    Retorna False se o gibi não existe. Capas inválidas levantam ValueError antes de gravar.
+    """
+    gravadas = {}
+    for numero, dados in capas.items():
+        if len(dados) > TAMANHO_MAX_CAPA:
+            raise ValueError("A imagem passa de 5 MB.")
+        extensao = tipo_da_imagem(dados)
+        if extensao is None:
+            raise ValueError("Use uma imagem JPG, PNG ou WEBP.")
+        gravadas[numero] = extensao
+
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        with conn.transaction():
+            linha = conn.execute(
+                "SELECT id, COALESCE(serie_total, 0) AS total FROM gibi WHERE codigo = %s",
+                (codigo,),
+            ).fetchone()
+            if linha is None:
+                return False
+            total = linha["total"]
+            pasta = os.path.join(app.config["CAPAS_DIR"], "gibi", "serie")
+            os.makedirs(pasta, exist_ok=True)
+            escritas = []
+            for numero, extensao in gravadas.items():
+                if not 1 <= numero <= total:
+                    continue
+                relativo = f"gibi/serie/{codigo}-{numero}.{extensao}"
+                destino = os.path.join(app.config["CAPAS_DIR"], relativo)
+                escritas.append((numero, relativo, destino, capas[numero]))
+            for numero in range(1, total + 1):
+                nova = next((e for e in escritas if e[0] == numero), None)
+                isbn10, isbn13 = (isbns or {}).get(numero, (None, None))
+                conn.execute(
+                    """INSERT INTO gibi_serie_item (gibi_id, numero, marcado, capa_arquivo, isbn10, isbn13)
+                       VALUES (%s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (gibi_id, numero) DO UPDATE
+                          SET marcado = EXCLUDED.marcado,
+                              capa_arquivo = COALESCE(EXCLUDED.capa_arquivo, gibi_serie_item.capa_arquivo),
+                              isbn10 = EXCLUDED.isbn10,
+                              isbn13 = EXCLUDED.isbn13""",
+                    (linha["id"], numero, numero in marcados, nova[1] if nova else None, isbn10, isbn13),
+                )
+            _recalcular_serie_completa(conn, linha["id"])
+        # Os arquivos só são gravados depois que o banco aceitou os dados.
+        for _, _, destino, dados in escritas:
+            with open(destino, "wb") as arquivo:
+                arquivo.write(dados)
+        return True
 
 
 def figurinhas_do_album(app, codigo):

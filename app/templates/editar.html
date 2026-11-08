@@ -31,6 +31,9 @@
   {% if extras_salvos %}
     <p class="aviso ok" role="status">Itens extras salvos.</p>
   {% endif %}
+  {% if serie_salva %}
+    <p class="aviso ok" role="status">Números da série salvos.</p>
+  {% endif %}
 
   <section class="editar-capa">
     <div class="editar-capa-imagem">
@@ -75,6 +78,13 @@
             <span>Completo: <strong>{{ 'Sim' if figurinhas.completo else 'Não' }}</strong>
               ({{ figurinhas.marcadas|length }} de {{ figurinhas.total }} marcadas)</span>
             <button type="button" class="botao-secundario" id="abrir-figurinhas">Marcar figurinhas</button>
+          </div>
+        {% endif %}
+        {% if campo.chave == 'serie_total' and serie %}
+          <div class="figurinhas-status">
+            <span>Números: <strong>{{ serie.itens|selectattr('marcado')|list|length }}</strong> de {{ serie.total }} marcados
+              · Série completa: <strong>{{ 'Sim' if serie.completa else 'Não' }}</strong></span>
+            <button type="button" class="botao-secundario" id="abrir-serie">Gerenciar números</button>
           </div>
         {% endif %}
         {% if campo.chave == 'extra_total' and extras %}
@@ -140,6 +150,45 @@
       </form>
     </dialog>
   {% endif %}
+
+  {% if serie and serie.total > 0 %}
+    <dialog id="dialogo-serie" class="dialogo-figurinhas dialogo-serie">
+      <form method="post" action="{{ url_for('catalogo.salvar_serie', tipo=tipo, codigo=codigo) }}"
+            enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <h3>Números de {{ valores.titulo or codigo }}</h3>
+        <p id="serie-dica">Marque os números que você tem. Para a capa de um número, arraste a imagem para a caixa dele ou clique nela e cole com Ctrl+V. Depois clique em Salvar números.</p>
+        <div class="grade-serie">
+          {% for item in serie.itens %}
+            <div class="numero-serie">
+              <span class="numero-serie-n">{{ item.numero }}</span>
+              {% if item.capa %}
+                <img src="{{ url_for('catalogo.capa', arquivo=item.capa) }}" alt="Capa do número {{ item.numero }}">
+              {% else %}
+                <div class="numero-serie-sem">sem capa</div>
+              {% endif %}
+              <label class="numero-serie-marca">
+                <input type="checkbox" name="numero" value="{{ item.numero }}" {% if item.marcado %}checked{% endif %}>
+                <span>tenho</span>
+              </label>
+              <input type="file" name="capa_{{ item.numero }}" accept="image/jpeg,image/png,image/webp"
+                     class="numero-serie-arquivo" aria-label="Capa do número {{ item.numero }}">
+              <div class="numero-serie-isbn">
+                <input type="text" name="isbn10_{{ item.numero }}" value="{{ item.isbn10 or '' }}"
+                       placeholder="ISBN-10" aria-label="ISBN-10 do número {{ item.numero }}">
+                <input type="text" name="isbn13_{{ item.numero }}" value="{{ item.isbn13 or '' }}"
+                       placeholder="ISBN-13" aria-label="ISBN-13 do número {{ item.numero }}">
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <div class="editar-acoes">
+          <button type="submit">Salvar números</button>
+          <button type="button" class="botao-secundario" data-fechar-serie>Fechar</button>
+        </div>
+      </form>
+    </dialog>
+  {% endif %}
 {% endblock %}
 
 {% block fim %}
@@ -158,6 +207,8 @@
     // Ctrl+V com uma imagem na área de transferência vira a nova capa.
     // Se o foco estiver num campo de texto, a colagem segue normal.
     document.addEventListener("paste", (e) => {
+      // Com uma caixa aberta (ex.: números da série), a colagem é dela, não da capa principal.
+      if (document.querySelector("dialog[open]")) return;
       const digitando = e.target.closest && e.target.closest("input, textarea");
       if (digitando) return;
       const item = Array.from(e.clipboardData?.items || []).find(
@@ -224,6 +275,77 @@
     );
     dialogo.addEventListener("click", (e) => {
       if (e.target === dialogo) dialogo.close();
+    });
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-serie");
+    const abrir = document.getElementById("abrir-serie");
+    if (!dialogo || !abrir) return;
+    abrir.addEventListener("click", () => dialogo.showModal());
+    dialogo.querySelectorAll("[data-fechar-serie]").forEach((botao) =>
+      botao.addEventListener("click", () => dialogo.close())
+    );
+    dialogo.addEventListener("click", (e) => {
+      if (e.target === dialogo) dialogo.close();
+    });
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-serie");
+    if (!dialogo) return;
+    let ativa = null; // número que recebe a capa colada
+
+    // Coloca a imagem no campo do número e mostra a prévia (o arquivo é gravado ao salvar).
+    function colocarCapa(celula, arquivo) {
+      const campo = celula.querySelector('input[type="file"]');
+      const transferencia = new DataTransfer();
+      transferencia.items.add(arquivo);
+      campo.files = transferencia.files;
+      const previa = document.createElement("img");
+      previa.src = URL.createObjectURL(arquivo);
+      previa.alt = "Nova capa do número " + celula.querySelector(".numero-serie-n").textContent;
+      const antiga = celula.querySelector("img, .numero-serie-sem");
+      if (antiga) antiga.replaceWith(previa);
+      celula.classList.add("capa-nova");
+      const numero = celula.querySelector(".numero-serie-n").textContent;
+      const dica = document.getElementById("serie-dica");
+      if (dica) {
+        dica.textContent = `Capa do número ${numero} pronta. Clique em Salvar números para gravar.`;
+      }
+    }
+
+    dialogo.querySelectorAll(".numero-serie").forEach((celula) => {
+      celula.tabIndex = 0;
+      celula.addEventListener("click", () => { ativa = celula; });
+      celula.addEventListener("focus", () => { ativa = celula; });
+      celula.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        celula.classList.add("arrastando");
+      });
+      celula.addEventListener("dragleave", () => celula.classList.remove("arrastando"));
+      celula.addEventListener("drop", (e) => {
+        e.preventDefault();
+        celula.classList.remove("arrastando");
+        const arquivo = e.dataTransfer.files[0];
+        if (arquivo) colocarCapa(celula, arquivo);
+      });
+    });
+
+    // Ctrl+V com uma imagem: vai para o número selecionado (clicado ou com foco).
+    document.addEventListener("paste", (e) => {
+      if (!dialogo.open || !ativa) return;
+      if (e.target.closest && e.target.closest("input, textarea")) return;
+      const item = Array.from(e.clipboardData?.items || []).find(
+        (i) => i.kind === "file" && i.type.startsWith("image/")
+      );
+      if (!item) return;
+      const arquivo = item.getAsFile();
+      if (!arquivo) return;
+      e.preventDefault();
+      colocarCapa(ativa, arquivo);
     });
   })();
 </script>

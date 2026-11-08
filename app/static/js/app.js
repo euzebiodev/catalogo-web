@@ -43,6 +43,14 @@
       if (campo.rotulo === "Conteúdo extra" && dados.extras) {
         valor.append(" ", botaoVer(dados, dados.extras, "Itens extras", "Ver extras"));
       }
+      if (campo.rotulo === "Série fechada" && dados.serie) {
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.className = "botao-secundario";
+        botao.textContent = "Ver números";
+        botao.addEventListener("click", () => abrirSerie(dados));
+        valor.append(" ", botao);
+      }
       lista.append(termo, valor);
     }
 
@@ -68,6 +76,69 @@
     }
 
     corpo.append(figura, texto);
+  }
+
+  // Popup com os números de uma série fechada: capa de cada número e destaque nos que você tem.
+  function abrirSerie(dados) {
+    const serie = dados.serie;
+    let caixa = document.getElementById("serie-popup");
+    if (!caixa) {
+      caixa = document.createElement("dialog");
+      caixa.id = "serie-popup";
+      caixa.className = "dialogo-figurinhas dialogo-serie";
+      caixa.addEventListener("click", (e) => {
+        if (e.target === caixa) caixa.close();
+      });
+      document.body.append(caixa);
+    }
+    caixa.replaceChildren();
+
+    const titulo = document.createElement("h3");
+    titulo.textContent = `Números de ${dados.titulo}`;
+
+    const marcados = serie.itens.filter((item) => item.marcado).length;
+    const resumo = document.createElement("p");
+    resumo.textContent = `${marcados} de ${serie.total} marcados`;
+
+    const grade = document.createElement("div");
+    grade.className = "grade-serie";
+    for (const item of serie.itens) {
+      const cel = document.createElement("div");
+      cel.className = "numero-serie" + (item.marcado ? " marcado" : "");
+      const numero = document.createElement("span");
+      numero.className = "numero-serie-n";
+      numero.textContent = item.numero;
+      cel.append(numero);
+      if (item.capa) {
+        const img = document.createElement("img");
+        img.src = `/capas/${item.capa}`;
+        img.alt = `Capa do número ${item.numero}`;
+        img.loading = "lazy";
+        cel.append(img);
+      } else {
+        const sem = document.createElement("div");
+        sem.className = "numero-serie-sem";
+        sem.textContent = "sem capa";
+        cel.append(sem);
+      }
+      if (item.isbn10 || item.isbn13) {
+        const isbns = document.createElement("div");
+        isbns.className = "numero-serie-isbnx";
+        if (item.isbn10) isbns.append(`ISBN-10: ${item.isbn10}`, document.createElement("br"));
+        if (item.isbn13) isbns.append(`ISBN-13: ${item.isbn13}`);
+        cel.append(isbns);
+      }
+      grade.append(cel);
+    }
+
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "botao-secundario";
+    fechar.textContent = "Fechar";
+    fechar.addEventListener("click", () => caixa.close());
+
+    caixa.append(titulo, resumo, grade, fechar);
+    caixa.showModal();
   }
 
   function botaoVer(dados, parte, rotulo, texto) {

@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import NamedTuple
 
 from .db import fetch_all, fetch_one
+from .edicao import serie_do_gibi
 
 TIPOS = {
     "livros": {"nome": "Livros", "tabela": "livro"},
@@ -162,6 +163,13 @@ ORDENACOES = {
     },
 }
 
+# Capa de um gibi: se for série fechada, a capa do número 1 aparece sempre que existir.
+CAPA_GIBI = (
+    "CASE WHEN g.serie_fechada THEN COALESCE("
+    "(SELECT s.capa_arquivo FROM gibi_serie_item s WHERE s.gibi_id = g.id AND s.numero = 1), "
+    "g.capa_arquivo) ELSE g.capa_arquivo END"
+)
+
 SQL_LISTA = {
     "livros": """
         SELECT l.codigo, l.titulo, l.capa_arquivo,
@@ -174,7 +182,7 @@ SQL_LISTA = {
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "gibis": """
-        SELECT g.codigo, g.titulo, g.capa_arquivo,
+        SELECT g.codigo, g.titulo, """ + CAPA_GIBI + """ AS capa_arquivo,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
                  WHERE gp.gibi_id = g.id) AS subtitulo
@@ -229,7 +237,9 @@ SQL_DETALHE = {
     "gibis": """
         SELECT g.codigo, g.titulo, g.categoria, g.paginas, g.ano_publicacao,
                g.isbn10, g.isbn13, g.encadernacao, g.clube_do_livro, g.conservacao,
-               g.aquisicao_data, g.preco, g.sinopse, g.nota, g.capa_arquivo, g.capa_fonte,
+               g.aquisicao_data, g.preco, g.sinopse, g.nota, g.capa_fonte,
+               g.numero_edicao, g.serie_fechada, g.serie_total, g.serie_completa,
+               """ + CAPA_GIBI + """ AS capa_arquivo,
                ed.nome AS editora, est.nome AS estante,
                (SELECT string_agg(p.nome || ' (' || gp.papel || ')', ', ' ORDER BY p.nome)
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
@@ -323,12 +333,14 @@ CAMPOS_POPUP = {
     "gibis": [
         ("Autores e equipe", "pessoas"),
         ("Categoria", "categoria"),
+        ("Número da edição", "numero_edicao"),
+        ("Série fechada", "serie_fechada"),
+        ("Total de números", "serie_total"),
+        ("Série completa", "serie_completa"),
         ("Editora", "editora"),
         ("Ano", "ano_publicacao"),
         ("Páginas", "paginas"),
         ("Encadernação", "encadernacao"),
-        ("ISBN-10", "isbn10"),
-        ("ISBN-13", "isbn13"),
         ("Gêneros", "generos"),
         ("Clube do Livro", "clube_do_livro"),
         ("Estante", "estante"),
@@ -463,6 +475,7 @@ def detalhe(app, tipo, codigo):
         "faixas": faixas,
         "figurinhas": _figurinhas(app, linha, codigo) if tipo == "album" else None,
         "extras": _extras(app, linha, codigo) if tipo == "album" and linha["tem_extra"] else None,
+        "serie": serie_do_gibi(app, codigo) if tipo == "gibis" and linha["serie_fechada"] and linha["serie_total"] else None,
     }
 
 

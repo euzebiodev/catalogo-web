@@ -399,5 +399,76 @@ class FichasTest(unittest.TestCase):
         self.assertEqual(self.cliente.get("/livros/NAOEXISTE").status_code, 404)
 
 
+class SerieGibiTest(unittest.TestCase):
+    """Série fechada de gibi: números marcados e capa por número, num gibi temporário H9999."""
+
+    @classmethod
+    def setUpClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM gibi WHERE codigo = 'H9999'")
+            conexao.execute(
+                "INSERT INTO gibi (codigo, titulo, serie_fechada, serie_total) VALUES ('H9999', 'Série de teste', true, 3)"
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM gibi WHERE codigo = 'H9999'")
+
+    def setUp(self):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute(
+                "DELETE FROM gibi_serie_item WHERE gibi_id = (SELECT id FROM gibi WHERE codigo = 'H9999')"
+            )
+            conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+        self.cliente = criar_app().test_client()
+        html = self.cliente.get("/entrar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        self.cliente.post("/entrar", data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/"})
+
+    def token(self):
+        html = self.cliente.get("/gibis/H9999/editar").get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def test_marca_numeros_e_grava_capa(self):
+        resposta = self.cliente.post(
+            "/gibis/H9999/serie",
+            data={
+                "csrf": self.token(),
+                "numero": ["1", "2"],
+                "capa_2": (io.BytesIO(PNG_MINIMO), "n2.png"),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            linhas = conexao.execute(
+                """SELECT s.numero, s.marcado, s.capa_arquivo FROM gibi_serie_item s
+                     JOIN gibi g ON g.id = s.gibi_id WHERE g.codigo = 'H9999' ORDER BY s.numero"""
+            ).fetchall()
+        self.assertEqual([(n, m) for n, m, _ in linhas], [(1, True), (2, True), (3, False)])
+        self.assertEqual(linhas[1][2], "gibi/serie/H9999-2.png")
+        self.assertTrue(os.path.exists(os.path.join(CAPAS_TESTE, "gibi", "serie", "H9999-2.png")))
+
+    def test_serie_completa_so_com_todos_os_numeros(self):
+        def completa():
+            with psycopg.connect(URL) as conexao:
+                return conexao.execute("SELECT serie_completa FROM gibi WHERE codigo = 'H9999'").fetchone()[0]
+
+        self.cliente.post("/gibis/H9999/serie", data={"csrf": self.token(), "numero": ["1", "2"]})
+        self.assertFalse(completa())
+        self.cliente.post("/gibis/H9999/serie", data={"csrf": self.token(), "numero": ["1", "2", "3"]})
+        self.assertTrue(completa())
+
+    def test_recusa_capa_que_nao_e_imagem(self):
+        resposta = self.cliente.post(
+            "/gibis/H9999/serie",
+            data={"csrf": self.token(), "capa_1": (io.BytesIO(b"texto"), "x.png")},
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Use uma imagem JPG, PNG ou WEBP", resposta.get_data(as_text=True))
+
+
 if __name__ == "__main__":
     unittest.main()
