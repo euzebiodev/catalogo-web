@@ -54,6 +54,9 @@
           <span>{{ campo.rotulo }}{% if campo.obrigatorio %} *{% endif %}</span>
           {% if campo.longo %}
             <textarea name="{{ campo.chave }}" rows="4">{{ valores[campo.chave] }}</textarea>
+          {% elif campo.tipo == 'booleano' %}
+            <input type="checkbox" name="{{ campo.chave }}" value="on"
+                   {% if valores[campo.chave] in ['1', 'on'] %}checked{% endif %}>
           {% else %}
             <input type="{{ campo.tipo_entrada }}" name="{{ campo.chave }}"
                    value="{{ valores[campo.chave] }}"

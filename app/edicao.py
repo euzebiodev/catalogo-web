@@ -106,6 +106,7 @@ CAMPOS = {
             _EDITORA,
             _ESTANTE,
             Campo("numero_figurinhas", "numero_figurinhas", "inteiro", "Número de figurinhas", faixa=(0, 5000)),
+            Campo("completo", "completo", "booleano", "Completo"),
             _ANO,
             _CONSERVACAO,
             _AQUISICAO,
@@ -152,6 +153,8 @@ def _sql_leitura(tipo):
 
 
 def _como_texto(campo, valor):
+    if campo.tipo == "booleano":
+        return "1" if valor else ""
     if valor is None:
         return ""
     if campo.tipo == "dinheiro":
@@ -170,6 +173,10 @@ def ler_para_edicao(app, tipo, codigo):
 
 
 def _converter(campo, bruto):
+    if campo.tipo == "booleano":
+        # Caixa de marcar: o navegador envia "on" só quando está marcada.
+        return bruto == "on"
+
     if not bruto:
         if campo.obrigatorio:
             raise ValueError("preencha este campo")

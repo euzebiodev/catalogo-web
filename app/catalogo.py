@@ -259,7 +259,7 @@ SQL_DETALHE = {
     """,
     "album": """
         SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
-               a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte,
+               a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte, a.completo,
                ed.nome AS editora, est.nome AS estante
         FROM album_figurinha a
         LEFT JOIN editora ed ON ed.id = a.editora_id
@@ -338,6 +338,7 @@ CAMPOS_POPUP = {
         ("Editora", "editora"),
         ("Ano", "ano_publicacao"),
         ("Número de figurinhas", "numero_figurinhas"),
+        ("Completo", "completo"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
         ("Aquisição", "aquisicao_data"),
@@ -443,6 +444,8 @@ def detalhe(app, tipo, codigo):
 def formatar(valor):
     if valor is None:
         return None
+    if isinstance(valor, bool):
+        return "Sim" if valor else "Não"
     if isinstance(valor, Decimal):
         return f"R$ {valor:.2f}".replace(".", ",")
     if hasattr(valor, "strftime"):
