@@ -681,6 +681,71 @@ body {
   font-weight: 600;
 }
 
+.selecao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin: 0 0 12px;
+}
+
+.selecao-modo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.selecao-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.selecao-barra[hidden] {
+  display: none;
+}
+
+/* Marcador do cartão: só aparece no modo de seleção. */
+.marca-selecao {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 2px solid #e0a878;
+  background: rgba(20, 18, 16, 0.75);
+}
+
+.modo-selecao .marca-selecao {
+  display: block;
+}
+
+.cartao.selecionado .marca-selecao {
+  background: #e0a878;
+}
+
+.cartao.selecionado .marca-selecao::after {
+  content: "✓";
+  display: block;
+  text-align: center;
+  color: #141210;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.cartao {
+  position: relative;
+}
+
+.cartao.selecionado {
+  outline: 2px solid #e0a878;
+  outline-offset: 2px;
+}
+
 .voltar {
   margin: 0 0 8px;
   font-size: 0.9rem;

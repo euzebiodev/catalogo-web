@@ -52,6 +52,20 @@
 
   <p class="resumo">{{ total }} {{ 'item' if total == 1 else 'itens' }}{% if filtros %} encontrado{{ '' if total == 1 else 's' }}{% endif %}</p>
 
+  {% if logado() %}
+    <div class="selecao">
+      <label class="selecao-modo">
+        <input type="checkbox" id="selecao-modo">
+        <span>Selecionar itens para fichas</span>
+      </label>
+      <div class="selecao-barra" id="selecao-barra" hidden>
+        <span><strong id="selecao-total">0</strong> selecionados</span>
+        <a class="botao-secundario" id="selecao-gerar" href="{{ url_for('catalogo.fichas') }}" target="_blank" rel="noopener">Gerar fichas</a>
+        <button type="button" class="botao-secundario" id="selecao-limpar">Limpar seleção</button>
+      </div>
+    </div>
+  {% endif %}
+
   {% if itens %}
     <ul class="grade" role="list">
       {% for item in itens %}
@@ -66,6 +80,9 @@
               <div class="sem-capa">
                 <span>{{ item.titulo }}</span>
               </div>
+            {% endif %}
+            {% if logado() %}
+              <span class="marca-selecao" aria-hidden="true"></span>
             {% endif %}
             <span class="cartao-titulo">{{ item.titulo }}</span>
             {% if item.subtitulo %}

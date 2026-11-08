@@ -192,9 +192,85 @@
     }
   }
 
+  // Seleção para as fichas (só aparece para quem está logado). Fica no navegador de quem seleciona,
+  // então continua marcada ao trocar de página.
+  const CHAVE_SELECAO = "fichas-selecao";
+  const modoBox = document.getElementById("selecao-modo");
+  const barra = document.getElementById("selecao-barra");
+  const totalEl = document.getElementById("selecao-total");
+  const gerar = document.getElementById("selecao-gerar");
+  const limpar = document.getElementById("selecao-limpar");
+
+  function lerSelecao() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(CHAVE_SELECAO) || "[]"));
+    } catch (erro) {
+      return new Set();
+    }
+  }
+
+  function gravarSelecao(selecao) {
+    try {
+      localStorage.setItem(CHAVE_SELECAO, JSON.stringify([...selecao]));
+    } catch (erro) {
+      // Sem armazenamento disponível, a seleção vale só até a página mudar.
+    }
+  }
+
+  function modoSelecao() {
+    return Boolean(modoBox && modoBox.checked);
+  }
+
+  function chaveDo(cartao) {
+    return `${cartao.dataset.tipo}:${cartao.dataset.codigo}`;
+  }
+
+  function atualizarSelecao() {
+    const selecao = lerSelecao();
+    document.body.classList.toggle("modo-selecao", modoSelecao());
+    document.querySelectorAll(".cartao").forEach((cartao) => {
+      const marcado = selecao.has(chaveDo(cartao));
+      cartao.classList.toggle("selecionado", marcado);
+      cartao.setAttribute("aria-pressed", marcado ? "true" : "false");
+    });
+    if (barra) barra.hidden = !modoSelecao();
+    if (totalEl) totalEl.textContent = selecao.size;
+    if (gerar) {
+      gerar.href = "/fichas?" + [...selecao].map((c) => "i=" + encodeURIComponent(c)).join("&");
+      gerar.style.pointerEvents = selecao.size ? "" : "none";
+    }
+  }
+
+  function alternarSelecao(cartao) {
+    const selecao = lerSelecao();
+    const chave = chaveDo(cartao);
+    if (selecao.has(chave)) {
+      selecao.delete(chave);
+    } else {
+      selecao.add(chave);
+    }
+    gravarSelecao(selecao);
+    atualizarSelecao();
+  }
+
+  if (modoBox) {
+    modoBox.addEventListener("change", atualizarSelecao);
+    if (limpar) {
+      limpar.addEventListener("click", () => {
+        gravarSelecao(new Set());
+        atualizarSelecao();
+      });
+    }
+    atualizarSelecao();
+  }
+
   document.querySelectorAll(".cartao").forEach((cartao) => {
     cartao.addEventListener("click", () => {
-      abrirDetalhe(cartao.dataset.tipo, cartao.dataset.codigo);
+      if (modoSelecao()) {
+        alternarSelecao(cartao);
+      } else {
+        abrirDetalhe(cartao.dataset.tipo, cartao.dataset.codigo);
+      }
     });
   });
 

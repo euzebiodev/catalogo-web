@@ -370,5 +370,34 @@ class ExtrasTest(FigurinhasTest):
         self.assertEqual(numeros, [1, 2])
 
 
+class FichasTest(unittest.TestCase):
+    """Fichas para impressão: exigem login, têm QR code e mostram o item selecionado."""
+
+    def setUp(self):
+        self.cliente = criar_app().test_client()
+
+    def test_fichas_sem_login_redirecionam(self):
+        resposta = self.cliente.get("/fichas?i=livros:L0013")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/entrar", resposta.headers["Location"])
+
+    def test_fichas_com_login_trazem_dados_e_qr(self):
+        html = self.cliente.get("/entrar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        self.cliente.post("/entrar", data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/"})
+        resposta = self.cliente.get("/fichas?i=livros:L0013&i=gibis:H0007")
+        self.assertEqual(resposta.status_code, 200)
+        texto = resposta.get_data(as_text=True)
+        self.assertIn("Água Viva", texto)
+        # Um QR code por ficha (o endereço fica codificado nos pontos, não como texto).
+        self.assertEqual(texto.count("<svg"), 2)
+
+    def test_pagina_do_item(self):
+        resposta = self.cliente.get("/livros/L0013")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("Água Viva", resposta.get_data(as_text=True))
+        self.assertEqual(self.cliente.get("/livros/NAOEXISTE").status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

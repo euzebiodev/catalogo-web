@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fichas · Catálogo</title>
+  <style>
+    /* Folha A4 deitada: cada linha tem a frente (dados) e o verso (capa e QR code). */
+    @page { size: A4 landscape; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #111; background: #ddd; }
+    .barra { padding: 12px 16px; background: #222; color: #eee; display: flex; gap: 12px; align-items: center; }
+    .barra button { padding: 6px 14px; font: inherit; cursor: pointer; }
+    .folha {
+      width: 29.7cm; height: 21cm; margin: 12px auto; background: #fff;
+      padding-top: 2.25cm; display: flex; flex-direction: column; align-items: center; gap: 3cm;
+      page-break-after: always; break-after: page;
+    }
+    .folha:last-child { page-break-after: auto; break-after: auto; }
+    .linha { display: flex; gap: 1cm; }
+    .frente, .verso {
+      width: 12.5cm; height: 7.5cm; border: 1px dashed #888; padding: 0.4cm; overflow: hidden;
+    }
+    .frente h1 { margin: 0 0 0.15cm; font-size: 13pt; line-height: 1.15; }
+    .frente .codigo { margin: 0 0 0.25cm; font-family: Consolas, monospace; font-size: 9pt; color: #555; }
+    .frente dl { margin: 0; display: grid; grid-template-columns: 3.2cm 1fr; gap: 0.05cm 0.2cm; font-size: 8.5pt; }
+    .frente dt { color: #555; }
+    .frente dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .verso { display: flex; gap: 0.4cm; align-items: center; justify-content: center; }
+    .verso .capa { height: 6.7cm; width: 4.6cm; display: flex; align-items: center; justify-content: center; }
+    .verso .capa img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .verso .capa .sem-capa { font-size: 9pt; text-align: center; color: #555; }
+    .verso .qr { display: flex; flex-direction: column; align-items: center; gap: 0.2cm; }
+    .verso .qr svg { width: 3.8cm; height: 3.8cm; }
+    .verso .qr span { font-family: Consolas, monospace; font-size: 8pt; color: #333; }
+    @media print {
+      body { background: #fff; }
+      .barra { display: none; }
+      .folha { margin: 0; }
+      .frente, .verso { border-color: #bbb; }
+    }
+  </style>
+</head>
+<body>
+  <div class="barra">
+    <strong>{{ total }} {{ 'ficha' if total == 1 else 'fichas' }}</strong>
+    <button type="button" onclick="window.print()">Imprimir</button>
+    <a href="javascript:window.close()" style="color:#eee">Fechar</a>
+  </div>
+
+  {% for folha in folhas %}
+    <div class="folha">
+      {% for ficha in folha %}
+        {% set dados = ficha.dados %}
+        <div class="linha">
+          <section class="frente">
+            <h1>{{ dados.titulo }}</h1>
+            <p class="codigo">{{ dados.codigo }}</p>
+            <dl>
+              {% for campo in dados.campos if campo.rotulo not in ['Sinopse', 'Observações', 'Descrição do extra'] %}
+                {% if loop.index <= 8 %}
+                  <dt>{{ campo.rotulo }}</dt>
+                  <dd>{{ campo.valor }}</dd>
+                {% endif %}
+              {% endfor %}
+            </dl>
+          </section>
+          <section class="verso">
+            <div class="capa">
+              {% if dados.capa_arquivo %}
+                <img src="{{ url_for('catalogo.capa', arquivo=dados.capa_arquivo) }}" alt="">
+              {% else %}
+                <div class="sem-capa">{{ dados.titulo }}</div>
+              {% endif %}
+            </div>
+            <div class="qr">
+              {{ ficha.qr|safe }}
+              <span>{{ dados.codigo }}</span>
+            </div>
+          </section>
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</body>
+</html>

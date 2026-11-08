@@ -1,6 +1,9 @@
 import math
 import time
 
+import qrcode
+import qrcode.image.svg
+
 from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from psycopg.errors import UndefinedTable, UniqueViolation
 
@@ -232,6 +235,57 @@ def lista(tipo):
         ordem=ordem,
         opcoes_ordem=catalogo.opcoes_ordem(tipo),
     )
+
+
+@bp.get("/<tipo>/<codigo>")
+def item(tipo, codigo):
+    """Página de um item: é para onde aponta o QR code das fichas."""
+    if tipo not in catalogo.TIPOS:
+        abort(404)
+    dados = catalogo.detalhe(current_app, tipo, codigo)
+    if dados is None:
+        abort(404)
+    return render_template(
+        "item.html",
+        abas=catalogo.TIPOS,
+        tipo_ativo=tipo,
+        tipo=tipo,
+        dados=dados,
+    )
+
+
+# Fichas para impressão: 12,5 x 7,5 cm, uma por linha numa A4 deitada (frente e verso lado a lado).
+@bp.get("/fichas")
+@auth.exige_login
+def fichas():
+    base = request.host_url.rstrip("/")
+    selecionados = []
+    for par in request.args.getlist("i"):
+        tipo, _, codigo = par.partition(":")
+        if tipo not in catalogo.TIPOS or not codigo:
+            continue
+        dados = catalogo.detalhe(current_app, tipo, codigo)
+        if dados is None:
+            continue
+        link = f"{base}{url_for('catalogo.item', tipo=tipo, codigo=codigo)}"
+        selecionados.append({
+            "tipo": tipo,
+            "dados": dados,
+            "qr": _qr_svg(link),
+        })
+    # Duas fichas por folha (uma por linha).
+    folhas = [selecionados[i:i + 2] for i in range(0, len(selecionados), 2)]
+    return render_template("fichas.html", folhas=folhas, total=len(selecionados))
+
+
+def _qr_svg(texto):
+    imagem = qrcode.make(
+        texto,
+        image_factory=qrcode.image.svg.SvgPathImage,
+        box_size=10,
+        border=1,
+    )
+    return imagem.to_string(encoding="unicode")
 
 
 @bp.get("/api/<tipo>/<codigo>")

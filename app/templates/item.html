@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block titulo %}{{ dados.titulo }} · Catálogo{% endblock %}
+
+{% block conteudo %}
+  <p class="voltar"><a href="{{ url_for('catalogo.lista', tipo=tipo) }}">← Voltar para {{ abas[tipo].nome }}</a></p>
+
+  <article class="item-pagina">
+    <figure class="item-capa">
+      {% if dados.capa_arquivo %}
+        <img src="{{ url_for('catalogo.capa', arquivo=dados.capa_arquivo) }}" alt="Capa de {{ dados.titulo }}">
+      {% else %}
+        <div class="sem-capa"><span>{{ dados.titulo }}</span></div>
+      {% endif %}
+    </figure>
+    <div class="item-texto">
+      <h2>{{ dados.titulo }}</h2>
+      <p class="detalhe-codigo">{{ dados.codigo }}</p>
+      <dl>
+        {% for campo in dados.campos %}
+          <dt>{{ campo.rotulo }}</dt>
+          <dd>{{ campo.valor }}</dd>
+        {% endfor %}
+      </dl>
+      {% if dados.capa_fonte %}
+        <p class="detalhe-fonte">Fonte da capa: {{ dados.capa_fonte }}</p>
+      {% endif %}
+    </div>
+  </article>
+{% endblock %}
