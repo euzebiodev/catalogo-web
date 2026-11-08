@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import NamedTuple, Optional
 
-from .db import fetch_one
+from .db import fetch_all, fetch_one
 
 
 class Campo(NamedTuple):
@@ -106,7 +106,6 @@ CAMPOS = {
             _EDITORA,
             _ESTANTE,
             Campo("numero_figurinhas", "numero_figurinhas", "inteiro", "Número de figurinhas", faixa=(0, 5000)),
-            Campo("completo", "completo", "booleano", "Completo"),
             _ANO,
             _CONSERVACAO,
             _AQUISICAO,
@@ -264,7 +263,69 @@ def salvar(app, tipo, codigo, valores):
                 return False
             if "autores" in valores:
                 _salvar_autores(conn, linha["id"], valores["autores"])
+            if tipo == "album":
+                # Mudar o número de figurinhas pode mudar se o álbum está completo.
+                _recalcular_completo(conn, linha["id"])
             return True
+
+
+def figurinhas_do_album(app, codigo):
+    """Total de figurinhas, as marcadas e se está completo. None se o álbum não existe."""
+    linha = fetch_one(
+        app,
+        "SELECT id, COALESCE(numero_figurinhas, 0) AS total, completo"
+        " FROM album_figurinha WHERE codigo = %s",
+        (codigo,),
+    )
+    if linha is None:
+        return None
+    marcadas = fetch_all(
+        app,
+        "SELECT numero FROM album_figurinha_marcada WHERE album_id = %s ORDER BY numero",
+        (linha["id"],),
+    )
+    return {
+        "total": linha["total"],
+        "marcadas": {m["numero"] for m in marcadas},
+        "completo": linha["completo"],
+    }
+
+
+def salvar_figurinhas(app, codigo, marcadas):
+    """Grava as figurinhas marcadas e recalcula o campo completo. False se o álbum não existe.
+
+    Números fora de 1 até o total do álbum são ignorados.
+    """
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        with conn.transaction():
+            linha = conn.execute(
+                "SELECT id, COALESCE(numero_figurinhas, 0) AS total FROM album_figurinha WHERE codigo = %s",
+                (codigo,),
+            ).fetchone()
+            if linha is None:
+                return False
+            validas = sorted({n for n in marcadas if 1 <= n <= linha["total"]})
+            conn.execute("DELETE FROM album_figurinha_marcada WHERE album_id = %s", (linha["id"],))
+            for numero in validas:
+                conn.execute(
+                    "INSERT INTO album_figurinha_marcada (album_id, numero) VALUES (%s, %s)",
+                    (linha["id"], numero),
+                )
+            _recalcular_completo(conn, linha["id"])
+            return True
+
+
+def _recalcular_completo(conn, album_id):
+    """Completo = sim quando todas as figurinhas de 1 até o total estão marcadas (e há total)."""
+    conn.execute(
+        """UPDATE album_figurinha a
+              SET completo = (COALESCE(a.numero_figurinhas, 0) > 0
+                  AND (SELECT count(*) FROM album_figurinha_marcada m
+                        WHERE m.album_id = a.id AND m.numero BETWEEN 1 AND COALESCE(a.numero_figurinhas, 0))
+                      = COALESCE(a.numero_figurinhas, 0))
+            WHERE a.id = %s""",
+        (album_id,),
+    )
 
 
 def _salvar_autores(conn, livro_id, texto):

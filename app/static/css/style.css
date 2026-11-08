@@ -613,6 +613,57 @@ body {
   gap: 6px;
 }
 
+.figurinhas-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.botao-secundario {
+  background: transparent;
+  color: #e0a878;
+  border: 1px solid #e0a878;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.botao-secundario:hover {
+  background: rgba(224, 168, 120, 0.15);
+}
+
+.dialogo-figurinhas {
+  width: min(680px, calc(100% - 32px));
+  max-height: 85vh;
+  border: none;
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--fundo-cartao, #1f1d1a);
+  color: inherit;
+}
+
+.dialogo-figurinhas::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.grade-figurinhas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 10px;
+  max-height: 55vh;
+  overflow: auto;
+  padding: 4px;
+}
+
+.figurinha {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  font-size: 0.95rem;
+}
+
 .voltar {
   margin: 0 0 8px;
   font-size: 0.9rem;

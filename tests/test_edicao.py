@@ -289,5 +289,60 @@ class EdicaoTest(unittest.TestCase):
         self.assertIn("não está configurada", cliente.get("/entrar").get_data(as_text=True))
 
 
+class FigurinhasTest(unittest.TestCase):
+    """Álbum temporário F9999 com 3 figurinhas: marcar todas deixa o álbum completo."""
+
+    @classmethod
+    def setUpClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha WHERE codigo = 'F9999'")
+            conexao.execute(
+                "INSERT INTO album_figurinha (codigo, titulo, numero_figurinhas) VALUES ('F9999', 'Álbum de teste', 3)"
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha WHERE codigo = 'F9999'")
+
+    def setUp(self):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha_marcada WHERE album_id = (SELECT id FROM album_figurinha WHERE codigo = 'F9999')")
+            conexao.execute("UPDATE album_figurinha SET numero_figurinhas = 3, completo = false WHERE codigo = 'F9999'")
+            conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+        self.cliente = criar_app().test_client()
+        html = self.cliente.get("/entrar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        self.cliente.post("/entrar", data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/album"})
+
+    def completo_no_banco(self):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute("SELECT completo FROM album_figurinha WHERE codigo = 'F9999'").fetchone()[0]
+
+    def marcar(self, numeros):
+        html = self.cliente.get("/album/F9999/editar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        return self.cliente.post(
+            "/album/F9999/figurinhas",
+            data={"csrf": token, "numero": [str(n) for n in numeros]},
+        )
+
+    def test_completo_so_quando_todas_estao_marcadas(self):
+        self.assertEqual(self.marcar([1, 2]).status_code, 302)
+        self.assertFalse(self.completo_no_banco())
+        self.assertEqual(self.marcar([1, 2, 3]).status_code, 302)
+        self.assertTrue(self.completo_no_banco())
+        self.marcar([1])
+        self.assertFalse(self.completo_no_banco())
+
+    def test_numero_fora_do_total_e_ignorado(self):
+        self.marcar([1, 2, 3, 9])
+        with psycopg.connect(URL) as conexao:
+            numeros = [r[0] for r in conexao.execute(
+                "SELECT m.numero FROM album_figurinha_marcada m JOIN album_figurinha a ON a.id = m.album_id "
+                "WHERE a.codigo = 'F9999' ORDER BY m.numero").fetchall()]
+        self.assertEqual(numeros, [1, 2, 3])
+
+
 if __name__ == "__main__":
     unittest.main()

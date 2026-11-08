@@ -25,6 +25,9 @@
   {% if capa_erro %}
     <p class="aviso erro" role="alert">{{ capa_erro }}</p>
   {% endif %}
+  {% if figurinhas_salvas %}
+    <p class="aviso ok" role="status">Figurinhas salvas.</p>
+  {% endif %}
 
   <section class="editar-capa">
     <div class="editar-capa-imagem">
@@ -64,12 +67,48 @@
                    {% if campo.obrigatorio %}required{% endif %}>
           {% endif %}
         </label>
+        {% if campo.chave == 'numero_figurinhas' and figurinhas %}
+          <div class="figurinhas-status">
+            <span>Completo: <strong>{{ 'Sim' if figurinhas.completo else 'Não' }}</strong>
+              ({{ figurinhas.marcadas|length }} de {{ figurinhas.total }} marcadas)</span>
+            <button type="button" class="botao-secundario" id="abrir-figurinhas">Marcar figurinhas</button>
+          </div>
+        {% endif %}
       {% endfor %}
     </div>
     <div class="editar-acoes">
       <button type="submit">Salvar alterações</button>
     </div>
   </form>
+
+  {% if figurinhas %}
+    <dialog id="dialogo-figurinhas" class="dialogo-figurinhas">
+      <form method="post" action="{{ url_for('catalogo.salvar_figurinhas', tipo=tipo, codigo=codigo) }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <h3>Figurinhas de {{ valores.titulo or codigo }}</h3>
+        {% if figurinhas.total > 0 %}
+          <p>Marque as figurinhas que você já tem. O álbum fica completo quando todas estiverem marcadas.</p>
+          <div class="grade-figurinhas">
+            {% for n in range(1, figurinhas.total + 1) %}
+              <label class="figurinha">
+                <span>{{ n }}</span>
+                <input type="checkbox" name="numero" value="{{ n }}" {% if n in figurinhas.marcadas %}checked{% endif %}>
+              </label>
+            {% endfor %}
+          </div>
+          <div class="editar-acoes">
+            <button type="submit">Salvar figurinhas</button>
+            <button type="button" class="botao-secundario" data-fechar-figurinhas>Fechar</button>
+          </div>
+        {% else %}
+          <p class="aviso">Informe e salve o número de figurinhas do álbum antes de marcar.</p>
+          <div class="editar-acoes">
+            <button type="button" class="botao-secundario" data-fechar-figurinhas>Fechar</button>
+          </div>
+        {% endif %}
+      </form>
+    </dialog>
+  {% endif %}
 {% endblock %}
 
 {% block fim %}
@@ -125,6 +164,21 @@
       transferencia.items.add(arquivo);
       campo.files = transferencia.files;
       formulario.requestSubmit();
+    });
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-figurinhas");
+    const abrir = document.getElementById("abrir-figurinhas");
+    if (!dialogo || !abrir) return;
+    abrir.addEventListener("click", () => dialogo.showModal());
+    dialogo.querySelectorAll("[data-fechar-figurinhas]").forEach((botao) =>
+      botao.addEventListener("click", () => dialogo.close())
+    );
+    // Clicar fora da caixa fecha o diálogo.
+    dialogo.addEventListener("click", (e) => {
+      if (e.target === dialogo) dialogo.close();
     });
   })();
 </script>
