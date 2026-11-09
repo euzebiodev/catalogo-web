@@ -45,6 +45,7 @@ CAMPOS = {
             Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
             # Sem coluna própria: os autores ficam na tabela livro_autor (ver _salvar_autores).
             Campo("autores", None, "texto", "Autor(es)", tamanho=500),
+            Campo("generos", None, "texto", "Gêneros", tamanho=500),
             _EDITORA,
             _ESTANTE,
             _PAGINAS,
@@ -68,6 +69,7 @@ CAMPOS = {
         "campos": [
             Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
             Campo("categoria", "categoria", "texto", "Categoria"),
+            Campo("generos", None, "texto", "Gêneros", tamanho=500),
             Campo("numero_edicao", "numero_edicao", "inteiro", "Número da edição/volume", faixa=(0, 100000)),
             Campo("serie_fechada", "serie_fechada", "booleano", "Série já fechada"),
             Campo("serie_total", "serie_total", "inteiro", "Total de números da série", faixa=(0, 5000)),
@@ -91,6 +93,7 @@ CAMPOS = {
         "tabela": "lp_vinil",
         "campos": [
             Campo("titulo", "titulo", "texto", "Título", obrigatorio=True),
+            Campo("generos", None, "texto", "Gêneros", tamanho=500),
             Campo("gravadora", "gravadora_id", "referencia", "Gravadora", tabela_ref="gravadora"),
             _ESTANTE,
             Campo("numero_musicas", "numero_musicas", "inteiro", "Número de faixas", faixa=(0, 500)),
@@ -124,6 +127,14 @@ CAMPOS = {
 }
 
 
+# Gêneros ficam em tabelas de ligação: (tabela, coluna que aponta para o item).
+LIGACAO_GENERO = {
+    "livros": ("livro_genero", "livro_id"),
+    "gibis": ("gibi_genero", "gibi_id"),
+    "vinil": ("lp_genero", "lp_id"),
+}
+
+
 def campos_formulario(tipo):
     """Campos para desenhar o formulário, na ordem em que aparecem."""
     return [
@@ -144,10 +155,16 @@ def _sql_leitura(tipo):
     tabela = CAMPOS[tipo]["tabela"]
     colunas = ["t.codigo"]
     for c in CAMPOS[tipo]["campos"]:
-        if c.coluna is None:
+        if c.chave == "autores":
             colunas.append(
                 "(SELECT string_agg(p.nome, ', ' ORDER BY p.nome) FROM livro_autor la "
                 "JOIN pessoa p ON p.id = la.pessoa_id WHERE la.livro_id = t.id) AS " + c.chave
+            )
+        elif c.chave == "generos":
+            ligacao, coluna_item = LIGACAO_GENERO[tipo]
+            colunas.append(
+                f"(SELECT string_agg(g.nome, ', ' ORDER BY g.nome) FROM {ligacao} lg "
+                f"JOIN genero g ON g.id = lg.genero_id WHERE lg.{coluna_item} = t.id) AS generos"
             )
         elif c.tipo == "referencia":
             colunas.append(
@@ -306,6 +323,8 @@ def criar(app, tipo, codigo, valores):
 def _depois_de_gravar(conn, tipo, item_id, valores):
     if "autores" in valores:
         _salvar_autores(conn, item_id, valores["autores"])
+    if "generos" in valores and tipo in LIGACAO_GENERO:
+        _salvar_generos(conn, tipo, item_id, valores["generos"])
     if tipo == "album":
         # Total de figurinhas define se o álbum está completo.
         _recalcular_completo(conn, item_id)
@@ -536,6 +555,28 @@ def salvar_extras(app, codigo, marcados):
                     (linha["id"], numero),
                 )
             return True
+
+
+def _salvar_generos(conn, tipo, item_id, texto):
+    """Substitui os gêneros do item pelos nomes informados, separados por vírgula.
+
+    Gênero que ainda não existe é cadastrado em genero.
+    """
+    ligacao, coluna_item = LIGACAO_GENERO[tipo]
+    nomes = []
+    for nome in (texto or "").split(","):
+        nome = nome.strip()
+        if nome and nome not in nomes:
+            nomes.append(nome)
+    conn.execute(f"DELETE FROM {ligacao} WHERE {coluna_item} = %s", (item_id,))
+    for nome in nomes:
+        genero = conn.execute("SELECT id FROM genero WHERE nome = %s", (nome,)).fetchone()
+        if genero is None:
+            genero = conn.execute("INSERT INTO genero (nome) VALUES (%s) RETURNING id", (nome,)).fetchone()
+        conn.execute(
+            f"INSERT INTO {ligacao} ({coluna_item}, genero_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            (item_id, genero["id"]),
+        )
 
 
 def _salvar_autores(conn, livro_id, texto):

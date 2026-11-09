@@ -53,6 +53,7 @@ def limpar_teste():
                AND NOT EXISTS (SELECT 1 FROM livro_autor la WHERE la.pessoa_id = p.id)"""
         )
         conexao.execute("DELETE FROM editora WHERE nome = 'Editora de teste'")
+        conexao.execute("DELETE FROM genero WHERE nome LIKE 'Gênero de teste%'")
         # Senha trocada pelo site do usuário de teste (não o login real).
         conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
 
@@ -82,6 +83,9 @@ class EdicaoTest(unittest.TestCase):
             conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
             conexao.execute(
                 "DELETE FROM livro_autor WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
+            )
+            conexao.execute(
+                "DELETE FROM livro_genero WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
             )
         self.cliente = criar_app().test_client()
 
@@ -182,6 +186,35 @@ class EdicaoTest(unittest.TestCase):
         # A página mostra o campo já preenchido.
         html = self.cliente.get("/livros/T9999/editar").get_data(as_text=True)
         self.assertIn("Autor de teste A, Autor de teste B", html)
+
+    def test_generos_sao_substituidos_pelo_formulario(self):
+        self.entrar()
+        token = self.token_da_pagina("/livros/T9999/editar")
+        dados = self.dados_do_formulario(generos="Gênero de teste A, Gênero de teste B", csrf=token)
+        resposta = self.cliente.post("/livros/T9999/editar", data=dados)
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            nomes = [
+                linha[0]
+                for linha in conexao.execute(
+                    """SELECT g.nome FROM livro_genero lg
+                         JOIN genero g ON g.id = lg.genero_id
+                         JOIN livro l ON l.id = lg.livro_id
+                        WHERE l.codigo = 'T9999' ORDER BY g.nome"""
+                ).fetchall()
+            ]
+        self.assertEqual(nomes, ["Gênero de teste A", "Gênero de teste B"])
+        html = self.cliente.get("/livros/T9999/editar").get_data(as_text=True)
+        self.assertIn("Gênero de teste A, Gênero de teste B", html)
+
+        # Campo vazio remove os gêneros do item.
+        dados = self.dados_do_formulario(generos="", csrf=self.token_da_pagina("/livros/T9999/editar"))
+        self.cliente.post("/livros/T9999/editar", data=dados)
+        with psycopg.connect(URL) as conexao:
+            total = conexao.execute(
+                "SELECT count(*) FROM livro_genero lg JOIN livro l ON l.id = lg.livro_id WHERE l.codigo = 'T9999'"
+            ).fetchone()[0]
+        self.assertEqual(total, 0)
 
     def test_isbn_repetido_mostra_mensagem(self):
         self.entrar()
@@ -481,6 +514,7 @@ def limpar_novos():
         conexao.execute("DELETE FROM pessoa WHERE nome IN ('Autor novo A', 'Autor novo B')")
         conexao.execute("DELETE FROM editora WHERE nome = 'Editora nova de teste'")
         conexao.execute("DELETE FROM estante WHERE nome = 'Estante nova de teste'")
+        conexao.execute("DELETE FROM genero WHERE nome LIKE 'Gênero de teste%'")
     for arquivo in ("livro/T9997.png", "album/F9997.png"):
         caminho = os.path.join(CAPAS_TESTE, arquivo)
         if os.path.exists(caminho):
@@ -506,6 +540,7 @@ DADOS_LIVRO_NOVO = {
     "capa_fonte": "Editora",
     "nota": "Observação do cadastro novo",
     "sinopse": "Sinopse de teste.",
+    "generos": "Gênero de teste A",
 }
 
 
@@ -598,6 +633,12 @@ class NovoItemTest(unittest.TestCase):
         self.assertEqual(editora, "Editora nova de teste")
         self.assertEqual(estante, "Estante nova de teste")
         self.assertEqual(autores, ["Autor novo A", "Autor novo B"])
+        with psycopg.connect(URL) as conexao:
+            generos = [r[0] for r in conexao.execute(
+                """SELECT g.nome FROM livro_genero lg JOIN genero g ON g.id = lg.genero_id
+                    JOIN livro l ON l.id = lg.livro_id WHERE l.codigo = 'T9997'"""
+            ).fetchall()]
+        self.assertEqual(generos, ["Gênero de teste A"])
 
     def test_codigo_em_minusculas_vira_maiusculas(self):
         resposta = self.cliente.post("/livros/novo", data=self.formulario(codigo="t9997"))
@@ -760,6 +801,44 @@ class ExcluirItemTest(unittest.TestCase):
         html = self.cliente.get("/livros/T9996/editar").get_data(as_text=True)
         self.assertIn("/livros/T9996/excluir", html)
         self.assertIn("Excluir item", html)
+
+
+class GeneroGibiVinilTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        limpar_generos_gibi_vinil()
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_generos_gibi_vinil()
+
+    def generos_do(self, tabela_ligacao, coluna, codigo, tabela_item):
+        with psycopg.connect(URL) as conexao:
+            return [r[0] for r in conexao.execute(
+                f"""SELECT g.nome FROM {tabela_ligacao} lg JOIN genero g ON g.id = lg.genero_id
+                      JOIN {tabela_item} i ON i.id = lg.{coluna} WHERE i.codigo = %s ORDER BY g.nome""",
+                (codigo,),
+            ).fetchall()]
+
+    def test_gibi_grava_generos(self):
+        app = criar_app()
+        edicao.criar(app, "gibis", "H9996", {"titulo": "Gibi de teste", "serie_fechada": False, "generos": "Gênero de teste A, Gênero de teste B"})
+        self.assertEqual(self.generos_do("gibi_genero", "gibi_id", "H9996", "gibi"),
+                         ["Gênero de teste A", "Gênero de teste B"])
+
+    def test_vinil_grava_generos(self):
+        app = criar_app()
+        edicao.criar(app, "vinil", "V996", {"titulo": "Vinil de teste", "generos": "Gênero de teste A"})
+        self.assertEqual(self.generos_do("lp_genero", "lp_id", "V996", "lp_vinil"), ["Gênero de teste A"])
+        html = criar_app().test_client().get("/vinil/V996").get_data(as_text=True)
+        self.assertIn("Gênero de teste A", html)
+
+
+def limpar_generos_gibi_vinil():
+    with psycopg.connect(URL) as conexao:
+        conexao.execute("DELETE FROM gibi WHERE codigo = 'H9996'")
+        conexao.execute("DELETE FROM lp_vinil WHERE codigo = 'V996'")
+        conexao.execute("DELETE FROM genero WHERE nome LIKE 'Gênero de teste%'")
 
 
 def limpar_excluido():
