@@ -331,6 +331,7 @@ def lista(tipo):
         tipo_ativo=tipo,
         itens=itens,
         total=total,
+        total_itens=catalogo.contar_itens(current_app, tipo, filtros),
         pagina=pagina,
         total_paginas=total_paginas,
         numeros_paginas=janela_paginas(pagina, total_paginas),

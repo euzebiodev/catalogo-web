@@ -217,6 +217,20 @@ SQL_TOTAL = {
     "album": "SELECT count(*) AS total FROM album_figurinha a {where}",
 }
 
+# Contagem de itens do acervo, não de registros: uma série fechada vale um item por
+# número marcado (os volumes que estão na estante). Os demais tipos contam como SQL_TOTAL.
+SQL_ITENS = {
+    "gibis": """
+        SELECT COALESCE(sum(
+                   CASE WHEN g.serie_fechada AND COALESCE(g.serie_total, 0) > 0
+                        THEN (SELECT count(*) FROM gibi_serie_item s
+                               WHERE s.gibi_id = g.id AND s.marcado)
+                        ELSE 1 END), 0)::bigint AS total
+        FROM gibi g
+        {where}
+    """,
+}
+
 SQL_DETALHE = {
     "livros": """
         SELECT l.codigo, l.titulo, l.paginas, l.ano_publicacao, l.isbn10, l.isbn13,
@@ -453,6 +467,16 @@ def listar(app, tipo, pagina, por_pagina, filtros=None, ordem="codigo"):
     consulta = SQL_LISTA[tipo].format(where=where, ordem=ordenar_sql(tipo, ordem))
     itens = fetch_all(app, consulta, params_lista)
     return itens, total
+
+
+def contar_itens(app, tipo, filtros=None):
+    """Quantos itens o acervo tem, contando os números marcados das séries fechadas.
+
+    É diferente do total de registros devolvido por listar(), que é o que pagina a lista.
+    """
+    where, params = montar_filtro(tipo, filtros or {})
+    consulta = SQL_ITENS.get(tipo, SQL_TOTAL[tipo])
+    return fetch_one(app, consulta.format(where=where), params)["total"]
 
 
 def detalhe(app, tipo, codigo):

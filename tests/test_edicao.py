@@ -18,6 +18,7 @@ from werkzeug.security import generate_password_hash
 load_dotenv()
 
 from app import auth  # noqa: E402
+from app import catalogo  # noqa: E402
 from app import create_app  # noqa: E402
 from app import edicao  # noqa: E402
 
@@ -844,6 +845,64 @@ def limpar_generos_gibi_vinil():
 def limpar_excluido():
     with psycopg.connect(URL) as conexao:
         conexao.execute("DELETE FROM livro WHERE codigo = 'T9996'")
+
+
+def limpar_contagem():
+    with psycopg.connect(URL) as conexao:
+        conexao.execute("DELETE FROM gibi WHERE codigo IN ('H9998', 'H9997')")
+
+
+class ContagemItensTest(unittest.TestCase):
+    """O resumo da lista conta cada número marcado de uma série fechada como um item."""
+
+    @classmethod
+    def setUpClass(cls):
+        limpar_contagem()
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_contagem()
+
+    def setUp(self):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM gibi WHERE codigo IN ('H9998', 'H9997')")
+            conexao.execute(
+                "INSERT INTO gibi (codigo, titulo, serie_fechada, serie_total)"
+                " VALUES ('H9998', 'Série de contagem', true, 3)"
+            )
+            conexao.execute("INSERT INTO gibi (codigo, titulo) VALUES ('H9997', 'Gibi avulso de contagem')")
+
+    def marcar(self, numeros):
+        with psycopg.connect(URL) as conexao:
+            for numero in range(1, 4):
+                conexao.execute(
+                    """INSERT INTO gibi_serie_item (gibi_id, numero, marcado)
+                       SELECT id, %s, %s FROM gibi WHERE codigo = 'H9998'""",
+                    (numero, numero in numeros),
+                )
+
+    def test_conta_um_item_por_numero_marcado(self):
+        self.marcar({1, 2})
+        app = criar_app()
+        with app.app_context():
+            # Dois números da série mais o gibi avulso; o filtro limita aos itens do teste.
+            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "contagem"}), 3)
+
+    def test_serie_sem_numero_marcado_nao_conta(self):
+        app = criar_app()
+        with app.app_context():
+            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "Série de contagem"}), 0)
+
+    def test_gibi_sem_serie_conta_um(self):
+        app = criar_app()
+        with app.app_context():
+            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "Gibi avulso de contagem"}), 1)
+
+    def test_pagina_mostra_o_total_de_itens(self):
+        self.marcar({1, 2})
+        html = criar_app().test_client().get("/gibis?q=contagem").get_data(as_text=True)
+        self.assertIn("3 itens", html)
+        self.assertIn("(2 cadastros)", html)
 
 
 if __name__ == "__main__":
