@@ -36,6 +36,15 @@ ENV_FILE="$CONFIG_DIR/catalogo-web.env"
 PORTA="8092"
 TMP_RELEASE="$(mktemp -d)"
 
+# A pasta das capas vem do env do serviço. O unit precisa liberá-la para escrita,
+# porque ProtectSystem=strict deixa o resto do sistema somente leitura e, sem
+# isso, trocar capa ou enviar foto de conteúdo extra falha ao gravar.
+CAPAS_DIR="$(sed -n 's/^CAPAS_DIR=//p' "$ENV_FILE" 2>/dev/null | tr -d '\r' | tail -n 1)"
+READ_WRITE_LINE=""
+if [ -n "$CAPAS_DIR" ]; then
+    READ_WRITE_LINE="ReadWritePaths=$CAPAS_DIR"
+fi
+
 cleanup() {
     rm -rf "$TMP_RELEASE"
 }
@@ -51,6 +60,13 @@ if ! id "$SERVICE_USER" >/dev/null 2>&1; then
 fi
 
 install -d -o root -g root -m 0755 "$APP_DIR"
+
+# A subpasta das fotos do conteúdo extra precisa existir e ser gravável pelo
+# serviço antes do primeiro envio (edicao.salvar_extra também a cria, mas sem
+# isso o primeiro upload dependeria só da permissão herdada da pasta das capas).
+if [ -n "$CAPAS_DIR" ]; then
+    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0775 "$CAPAS_DIR/extras/livro"
+fi
 
 tar \
     --exclude='.git' \
@@ -99,6 +115,7 @@ PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
 ReadOnlyPaths=$RELEASE_DIR $VENV_DIR
+$READ_WRITE_LINE
 
 [Install]
 WantedBy=multi-user.target
