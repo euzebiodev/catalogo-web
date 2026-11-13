@@ -794,3 +794,25 @@ CREATE TABLE lp_faixa_autor (
 );
 
 CREATE INDEX idx_lp_faixa_autor_p ON lp_faixa_autor USING btree (pessoa_id);
+
+--
+-- Conteúdo extra dos livros (migracoes/019_livro_conteudo_extra.sql)
+--
+-- tem_conteudo_extra: marcador verdadeiro/falso do livro (pôster, marcador, agenda...).
+-- livro_extra: cada item extra cadastrado, com nome, descrição e foto opcional.
+-- Os GRANTs para catalogo_leitura e catalogo_escrita estão na migração 019.
+
+ALTER TABLE livro ADD COLUMN IF NOT EXISTS tem_conteudo_extra boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS livro_extra (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    livro_id bigint NOT NULL,
+    nome text NOT NULL,
+    descricao text,
+    foto_arquivo text,
+    ordem integer NOT NULL DEFAULT 0,
+    CONSTRAINT livro_extra_pkey PRIMARY KEY (id),
+    CONSTRAINT livro_extra_livro_id_fkey FOREIGN KEY (livro_id) REFERENCES livro(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_livro_extra_livro ON livro_extra USING btree (livro_id);

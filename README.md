@@ -117,6 +117,8 @@ A edição fica **desligada** até que todas estas variáveis estejam no `.env` 
 
 Na página "Editar campos" também dá para trocar a capa: arrastando o arquivo para a área, clicando nela ou colando uma imagem com Ctrl+V. Aceita JPG, PNG e WEBP, até 5 MB. A capa vai para `CAPAS_DIR` (`livro/`, `gibi/` ou `lp/`), então a pasta precisa ser gravável pelo serviço.
 
+Nos livros, a caixa **Tem conteúdo extra** marca o item no popup e o botão **Gerenciar conteúdo extra** cadastra pôster, marcadores, agendas, minilivros e afins. Cada item tem nome, descrição e uma foto opcional (JPG, PNG ou WEBP, até 5 MB), guardada em `CAPAS_DIR/extras/livro/<codigo>-<id>.<ext>`. O visitante vê os itens no botão **Ver conteúdo extra** da página do livro e do popup. Em bancos que já existem, aplique antes `db/migracoes/019_livro_conteudo_extra.sql`.
+
 Depois do login, o link "Alterar senha" troca a senha. A nova senha fica guardada no banco, na tabela `admin_senha`, e passa a valer no lugar de `CATALOGO_ADMIN_SENHA_HASH`.
 
 Migrações da edição, em ordem, a aplicar uma vez em cada banco: `003_permissoes_escrita.sql`, `004_senha_admin.sql` e `005_permissao_capa.sql`. O papel `catalogo_escrita` precisa existir antes.

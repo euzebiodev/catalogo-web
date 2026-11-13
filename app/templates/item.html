@@ -31,6 +31,57 @@
       {% if dados.capa_fonte %}
         <p class="detalhe-fonte">Fonte da capa: {{ dados.capa_fonte }}</p>
       {% endif %}
+      {% if dados.extras_livro %}
+        <p class="item-extras">
+          <button type="button" class="botao-secundario" id="abrir-extras-livro">
+            Ver conteúdo extra ({{ dados.extras_livro|length }})
+          </button>
+        </p>
+      {% endif %}
     </div>
   </article>
+
+  {% if dados.extras_livro %}
+    <dialog id="dialogo-extras-livro" class="dialogo-figurinhas dialogo-extras-livro">
+      <h3>Conteúdo extra de {{ dados.titulo }}</h3>
+      <ul class="extras-grade">
+        {% for extra in dados.extras_livro %}
+          <li class="extra-card">
+            {% if extra.foto %}
+              <img src="{{ url_for('catalogo.capa', arquivo=extra.foto) }}"
+                   alt="Foto de {{ extra.nome }}" loading="lazy">
+            {% else %}
+              <div class="sem-capa"><span>sem foto</span></div>
+            {% endif %}
+            <strong>{{ extra.nome }}</strong>
+            {% if extra.descricao %}
+              <p>{{ extra.descricao }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="editar-acoes">
+        <button type="button" class="botao-secundario" data-fechar-extras-livro>Fechar</button>
+      </div>
+    </dialog>
+  {% endif %}
+{% endblock %}
+
+{% block fim %}
+  {% if dados.extras_livro %}
+  <script>
+    (() => {
+      const dialogo = document.getElementById("dialogo-extras-livro");
+      const abrir = document.getElementById("abrir-extras-livro");
+      if (!dialogo || !abrir) return;
+      abrir.addEventListener("click", () => dialogo.showModal());
+      dialogo.querySelectorAll("[data-fechar-extras-livro]").forEach((botao) =>
+        botao.addEventListener("click", () => dialogo.close())
+      );
+      dialogo.addEventListener("click", (e) => {
+        if (e.target === dialogo) dialogo.close();
+      });
+    })();
+  </script>
+  {% endif %}
 {% endblock %}

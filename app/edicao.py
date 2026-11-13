@@ -56,6 +56,8 @@ CAMPOS = {
             _ISBN10,
             _ISBN13,
             _CLUBE,
+            # Marcador do livro: true quando a edição veio com pôster, marcador, agenda etc.
+            Campo("tem_conteudo_extra", "tem_conteudo_extra", "booleano", "Tem conteúdo extra"),
             _CONSERVACAO,
             _AQUISICAO,
             _PRECO,
@@ -268,7 +270,10 @@ def _pares_para_banco(conn, cfg, valores):
         if campo.coluna is None:
             continue  # autores: gravados à parte, em livro_autor
         valor = valores.get(campo.chave)
-        if campo.tipo == "referencia":
+        if campo.tipo == "booleano":
+            # Caixa desmarcada (ou ausente) vale falso: a coluna não aceita nulo.
+            valor = bool(valor)
+        elif campo.tipo == "referencia":
             valor = _id_da_referencia(conn, campo.tabela_ref, valor)
         pares[campo.coluna] = valor
     return pares
@@ -668,3 +673,129 @@ def trocar_capa(app, tipo, codigo, dados):
         if os.path.exists(antigo):
             os.remove(antigo)
     return True
+
+
+# Conteúdo extra dos livros: pôster, marcadores, agendas, minilivros e afins.
+# Cada item tem nome, descrição e, quando houver, uma foto. A foto fica em
+# CAPAS_DIR/extras/livro/<codigo>-<id>.<ext> e é servida pela mesma rota das capas.
+
+PASTA_EXTRA = "extras/livro"
+TAMANHO_MAX_FOTO = 5 * 1024 * 1024  # 5 MB
+
+
+def extras_do_livro(app, codigo):
+    """Itens extras do livro, na ordem em que foram cadastrados. None se o livro não existe."""
+    linha = fetch_one(app, "SELECT id FROM livro WHERE codigo = %s AND NOT excluido", (codigo,))
+    if linha is None:
+        return None
+    return fetch_all(
+        app,
+        """SELECT id, nome, descricao, foto_arquivo
+             FROM livro_extra
+            WHERE livro_id = %s
+            ORDER BY ordem, id""",
+        (linha["id"],),
+    )
+
+
+def salvar_extra(app, codigo, extra_id, nome, descricao, foto=None):
+    """Cadastra (extra_id None) ou altera um item do conteúdo extra do livro.
+
+    Devolve False se o livro não existe ou se o item não é dele. Levanta ValueError
+    quando o nome está vazio, o texto passa do limite ou a foto não é JPG, PNG ou WEBP.
+    """
+    nome = (nome or "").strip()
+    descricao = (descricao or "").strip() or None
+    if not nome:
+        raise ValueError("Nome do item: preencha este campo")
+    if len(nome) > 200:
+        raise ValueError("Nome do item: use no máximo 200 caracteres")
+    if descricao and len(descricao) > 2000:
+        raise ValueError("Descrição do item: use no máximo 2000 caracteres")
+
+    extensao = None
+    if foto is not None:
+        if len(foto) > TAMANHO_MAX_FOTO:
+            raise ValueError("A foto passa de 5 MB.")
+        extensao = tipo_da_imagem(foto)
+        if extensao is None:
+            raise ValueError("Use uma foto JPG, PNG ou WEBP.")
+
+    raiz = app.config["CAPAS_DIR"]
+    temporario = None
+    try:
+        with app.extensions["db_pool_escrita"].connection() as conn:
+            with conn.transaction():
+                livro = conn.execute(
+                    "SELECT id FROM livro WHERE codigo = %s AND NOT excluido", (codigo,)
+                ).fetchone()
+                if livro is None:
+                    return False
+
+                if extra_id is None:
+                    item = conn.execute(
+                        """INSERT INTO livro_extra (livro_id, nome, descricao, ordem)
+                           VALUES (%s, %s, %s,
+                                   COALESCE((SELECT max(ordem) + 1 FROM livro_extra
+                                              WHERE livro_id = %s), 0))
+                           RETURNING id, foto_arquivo""",
+                        (livro["id"], nome, descricao, livro["id"]),
+                    ).fetchone()
+                else:
+                    item = conn.execute(
+                        """UPDATE livro_extra SET nome = %s, descricao = %s
+                            WHERE id = %s AND livro_id = %s
+                            RETURNING id, foto_arquivo""",
+                        (nome, descricao, extra_id, livro["id"]),
+                    ).fetchone()
+                    if item is None:
+                        return False
+
+                anterior = item["foto_arquivo"]
+                relativo = anterior
+                destino = None
+                if extensao is not None:
+                    nome_arquivo = f"{codigo}-{item['id']}.{extensao}"
+                    relativo = f"{PASTA_EXTRA}/{nome_arquivo}"
+                    destino = os.path.join(raiz, PASTA_EXTRA, nome_arquivo)
+                    temporario = destino + ".tmp"
+                    os.makedirs(os.path.dirname(destino), exist_ok=True)
+                    with open(temporario, "wb") as arquivo:
+                        arquivo.write(foto)
+                    conn.execute(
+                        "UPDATE livro_extra SET foto_arquivo = %s WHERE id = %s",
+                        (relativo, item["id"]),
+                    )
+
+            # Só depois do commit: põe o arquivo no lugar e descarta a foto antiga.
+            if destino is not None:
+                os.replace(temporario, destino)
+                temporario = None
+                if anterior and anterior != relativo:
+                    antiga = os.path.join(raiz, anterior)
+                    if os.path.exists(antiga):
+                        os.remove(antiga)
+        return True
+    finally:
+        if temporario and os.path.exists(temporario):
+            os.remove(temporario)
+
+
+def excluir_extra(app, codigo, extra_id):
+    """Remove o item do conteúdo extra e a foto dele. False se o item não é deste livro."""
+    with app.extensions["db_pool_escrita"].connection() as conn:
+        linha = conn.execute(
+            """DELETE FROM livro_extra x
+                 USING livro l
+                WHERE x.id = %s AND x.livro_id = l.id AND l.codigo = %s AND NOT l.excluido
+                RETURNING x.foto_arquivo""",
+            (extra_id, codigo),
+        ).fetchone()
+    if linha is None:
+        return False
+    if linha["foto_arquivo"]:
+        caminho = os.path.join(app.config["CAPAS_DIR"], linha["foto_arquivo"])
+        if os.path.exists(caminho):
+            os.remove(caminho)
+    return True
+

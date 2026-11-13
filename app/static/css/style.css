@@ -922,6 +922,155 @@ ul.aviso {
   text-decoration: underline;
 }
 
+/* Conteúdo extra dos livros: pôster, marcadores, agendas, minilivros... */
+.extras-livro {
+  margin: 24px 0 0;
+}
+
+.extras-livro-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.extras-livro-topo h3 {
+  margin: 0;
+}
+
+.extras-livro-resumo {
+  flex: 1 1 240px;
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.dialogo-extras-livro {
+  width: min(780px, calc(100% - 32px));
+  overflow: auto;
+}
+
+.dialogo-extras-livro h3 {
+  margin-top: 0;
+}
+
+.extra-lista {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extra-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+
+.extra-foto {
+  flex: 0 0 96px;
+}
+
+.extra-foto img {
+  display: block;
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.extra-foto .sem-capa {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #555;
+  border-radius: 6px;
+  color: #888;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.extra-form {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 260px;
+}
+
+.extra-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.extra-form-novo {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--borda);
+}
+
+.extra-form-novo h4 {
+  margin: 0;
+}
+
+.extra-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Grade de cartões do popup da lista e da página do item. */
+.extras-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extra-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.extra-card img,
+.extra-card .sem-capa {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.extra-card .sem-capa {
+  display: grid;
+  place-items: center;
+  border: 1px dashed #555;
+  border-radius: 6px;
+  color: #888;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.extra-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.item-extras {
+  margin: 16px 0 0;
+}
+
 @media (max-width: 600px) {
   .editar-grade {
     grid-template-columns: 1fr;

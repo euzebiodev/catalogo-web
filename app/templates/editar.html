@@ -34,6 +34,15 @@
   {% if serie_salva %}
     <p class="aviso ok" role="status">Números da série salvos.</p>
   {% endif %}
+  {% if extra_salvo %}
+    <p class="aviso ok" role="status">Conteúdo extra salvo.</p>
+  {% endif %}
+  {% if extra_removido %}
+    <p class="aviso ok" role="status">Item do conteúdo extra removido.</p>
+  {% endif %}
+  {% if extra_erro %}
+    <p class="aviso erro" role="alert">{{ extra_erro }}</p>
+  {% endif %}
 
   <section class="editar-capa">
     <div class="editar-capa-imagem">
@@ -99,6 +108,103 @@
       <button type="submit">Salvar alterações</button>
     </div>
   </form>
+
+  {% if tipo == 'livros' %}
+    <section class="extras-livro">
+      <div class="extras-livro-topo">
+        <h3>Conteúdo extra</h3>
+        <p class="extras-livro-resumo">
+          {% if extras_livro %}
+            {{ extras_livro|length }} {{ 'item cadastrado' if extras_livro|length == 1 else 'itens cadastrados' }}:
+            pôster, marcador, agenda, minilivro e afins.
+          {% else %}
+            Pôster, marcador, agenda, minilivro e outros itens que vieram com o livro.
+          {% endif %}
+        </p>
+        <button type="button" class="botao-secundario" id="abrir-extras-livro">Gerenciar conteúdo extra</button>
+      </div>
+    </section>
+
+    <dialog id="dialogo-extras-livro" class="dialogo-figurinhas dialogo-extras-livro"
+            {% if extra_erro %}data-abrir="1"{% endif %}>
+      <h3>Conteúdo extra de {{ valores.titulo or codigo }}</h3>
+      {% if extra_erro %}
+        <p class="aviso erro" role="alert">{{ extra_erro }}</p>
+      {% endif %}
+
+      {% if extras_livro %}
+        <ul class="extra-lista">
+          {% for extra in extras_livro %}
+            <li class="extra-item">
+              <div class="extra-foto">
+                {% if extra.foto_arquivo %}
+                  <img src="{{ url_for('catalogo.capa', arquivo=extra.foto_arquivo) }}" alt="Foto de {{ extra.nome }}">
+                {% else %}
+                  <div class="sem-capa"><span>sem foto</span></div>
+                {% endif %}
+              </div>
+              <form method="post" action="{{ url_for('catalogo.salvar_extra_livro', tipo=tipo, codigo=codigo) }}"
+                    enctype="multipart/form-data" class="extra-form">
+                <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="extra_id" value="{{ extra.id }}">
+                <label>
+                  <span>Nome do item</span>
+                  <input type="text" name="nome" value="{{ extra.nome }}" maxlength="200" required>
+                </label>
+                <label>
+                  <span>Descrição</span>
+                  <textarea name="descricao" rows="2" maxlength="2000">{{ extra.descricao or '' }}</textarea>
+                </label>
+                <label>
+                  <span>Trocar foto (JPG, PNG ou WEBP, até 5 MB)</span>
+                  <input type="file" name="foto" accept="image/jpeg,image/png,image/webp">
+                </label>
+                <div class="extra-acoes">
+                  <button type="submit">Salvar item</button>
+                  <button type="submit" class="botao-perigo" form="excluir-extra-{{ extra.id }}" formnovalidate>Excluir</button>
+                </div>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+        {# Exclusão em formulários próprios: não dá para aninhar um form dentro do outro. #}
+        {% for extra in extras_livro %}
+          <form id="excluir-extra-{{ extra.id }}" method="post"
+                action="{{ url_for('catalogo.excluir_extra_livro', tipo=tipo, codigo=codigo, extra_id=extra.id) }}"
+                onsubmit="return confirm('Excluir este item do conteúdo extra?');">
+            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          </form>
+        {% endfor %}
+      {% else %}
+        <p class="aviso">Nenhum item cadastrado ainda. Use o formulário abaixo para incluir o primeiro.</p>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('catalogo.salvar_extra_livro', tipo=tipo, codigo=codigo) }}"
+            enctype="multipart/form-data" class="extra-form extra-form-novo">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <h4>Incluir item</h4>
+        <label>
+          <span>Nome do item *</span>
+          <input type="text" name="nome" maxlength="200" required
+                 placeholder="Pôster, marcador, agenda, minilivro..."
+                 value="{{ '' if extra_valores.get('extra_id') else extra_valores.get('nome', '') }}">
+        </label>
+        <label>
+          <span>Descrição</span>
+          <textarea name="descricao" rows="2" maxlength="2000"
+                    placeholder="Tamanho, estado, o que acompanha...">{{ '' if extra_valores.get('extra_id') else extra_valores.get('descricao', '') }}</textarea>
+        </label>
+        <label>
+          <span>Foto (JPG, PNG ou WEBP, até 5 MB)</span>
+          <input type="file" name="foto" accept="image/jpeg,image/png,image/webp">
+        </label>
+        <div class="extra-acoes">
+          <button type="submit">Adicionar item</button>
+          <button type="button" class="botao-secundario" data-fechar-extras-livro>Fechar</button>
+        </div>
+      </form>
+    </dialog>
+  {% endif %}
 
   <form method="post" action="{{ url_for('catalogo.excluir_item', tipo=tipo, codigo=codigo) }}"
         class="editar-excluir"
@@ -354,6 +460,22 @@
       e.preventDefault();
       colocarCapa(ativa, arquivo);
     });
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-extras-livro");
+    const abrir = document.getElementById("abrir-extras-livro");
+    if (!dialogo || !abrir) return;
+    abrir.addEventListener("click", () => dialogo.showModal());
+    dialogo.querySelectorAll("[data-fechar-extras-livro]").forEach((botao) =>
+      botao.addEventListener("click", () => dialogo.close())
+    );
+    dialogo.addEventListener("click", (e) => {
+      if (e.target === dialogo) dialogo.close();
+    });
+    // Voltando de um erro, a caixa já abre com a mensagem e o que foi digitado.
+    if (dialogo.dataset.abrir === "1") dialogo.showModal();
   })();
 </script>
 {% endblock %}

@@ -235,6 +235,7 @@ SQL_DETALHE = {
     "livros": """
         SELECT l.codigo, l.titulo, l.paginas, l.ano_publicacao, l.isbn10, l.isbn13,
                l.encadernacao, l.lingua, l.edicao, l.clube_do_livro, l.conservacao,
+               l.tem_conteudo_extra,
                l.aquisicao_data, l.preco, l.sinopse, l.nota, l.capa_arquivo, l.capa_fonte,
                ed.nome AS editora, est.nome AS estante,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
@@ -309,6 +310,15 @@ SQL_FIGURINHAS_MARCADAS = """
     ORDER BY m.numero
 """
 
+# Conteúdo extra dos livros (pôster, marcadores, agendas, minilivros...).
+SQL_EXTRAS_LIVRO = """
+    SELECT x.id, x.nome, x.descricao, x.foto_arquivo
+    FROM livro_extra x
+    JOIN livro l ON l.id = x.livro_id
+    WHERE l.codigo = %s AND NOT l.excluido
+    ORDER BY x.ordem, x.id
+"""
+
 # Faixas com compositores e link de clipe. Só os tipos que têm faixas aparecem aqui.
 SQL_FAIXAS = {
     "vinil": """
@@ -337,6 +347,7 @@ CAMPOS_POPUP = {
         ("ISBN-13", "isbn13"),
         ("Gêneros", "generos"),
         ("Clube do Livro", "clube_do_livro"),
+        ("Conteúdo extra", "tem_conteudo_extra"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
         ("Aquisição", "aquisicao_data"),
@@ -502,6 +513,9 @@ def detalhe(app, tipo, codigo):
     for rotulo, chave in CAMPOS_POPUP[tipo]:
         if chave == chave_sinopse:
             continue
+        # O marcador do livro só aparece quando é verdadeiro: "Conteúdo extra: Não" não diz nada.
+        if chave == "tem_conteudo_extra" and not linha.get(chave):
+            continue
         valor = formatar(linha.get(chave))
         if valor:
             campos.append({"rotulo": rotulo, "valor": valor})
@@ -519,6 +533,8 @@ def detalhe(app, tipo, codigo):
         "faixas": faixas,
         "figurinhas": _figurinhas(app, linha, codigo) if tipo == "album" else None,
         "extras": _extras(app, linha, codigo) if tipo == "album" and linha["tem_extra"] else None,
+        # Livros: os itens extras cadastrados (pôster, marcadores, agendas...).
+        "extras_livro": _extras_do_livro(app, codigo) if tipo == "livros" else None,
         "serie": serie_do_gibi(app, codigo) if tipo == "gibis" and linha["serie_fechada"] and linha["serie_total"] else None,
     }
 
@@ -539,6 +555,19 @@ def _extras(app, linha, codigo):
         "total": linha["extra_total"] or 0,
         "marcadas": [m["numero"] for m in marcados],
     }
+
+
+def _extras_do_livro(app, codigo):
+    """Conteúdo extra do livro, como lista para a grade do popup (foto, nome e descrição)."""
+    return [
+        {
+            "id": linha["id"],
+            "nome": linha["nome"],
+            "descricao": formatar(linha["descricao"]),
+            "foto": linha["foto_arquivo"],
+        }
+        for linha in fetch_all(app, SQL_EXTRAS_LIVRO, (codigo,))
+    ]
 
 
 def formatar(valor):

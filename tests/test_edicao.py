@@ -46,6 +46,9 @@ def criar_app():
 def limpar_teste():
     with psycopg.connect(URL) as conexao:
         conexao.execute(
+            "DELETE FROM livro_extra WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
+        )
+        conexao.execute(
             "DELETE FROM livro_autor WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
         )
         conexao.execute("DELETE FROM livro WHERE codigo = 'T9999'")
@@ -903,6 +906,192 @@ class ContagemItensTest(unittest.TestCase):
         html = criar_app().test_client().get("/gibis?q=contagem").get_data(as_text=True)
         self.assertIn("3 itens", html)
         self.assertIn("(2 cadastros)", html)
+
+
+def limpar_extras_livro():
+    with psycopg.connect(URL) as conexao:
+        conexao.execute(
+            "DELETE FROM livro_extra WHERE livro_id IN (SELECT id FROM livro WHERE codigo = 'T9999')"
+        )
+        conexao.execute("UPDATE livro SET tem_conteudo_extra = false WHERE codigo = 'T9999'")
+
+
+class ConteudoExtraLivroTest(unittest.TestCase):
+    """Conteúdo extra do livro T9999: marcador verdadeiro/falso e itens com nome, descrição e foto."""
+
+    @classmethod
+    def setUpClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute(
+                "INSERT INTO livro (codigo, titulo) VALUES ('T9999', 'Livro de teste')"
+                " ON CONFLICT (codigo) DO NOTHING"
+            )
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_extras_livro()
+        shutil.rmtree(os.path.join(CAPAS_TESTE, "extras"), ignore_errors=True)
+
+    def setUp(self):
+        limpar_extras_livro()
+        shutil.rmtree(os.path.join(CAPAS_TESTE, "extras"), ignore_errors=True)
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+        self.cliente = criar_app().test_client()
+        html = self.cliente.get("/entrar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        self.cliente.post(
+            "/entrar",
+            data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/livros"},
+        )
+
+    def token(self, url="/livros/T9999/editar"):
+        html = self.cliente.get(url).get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def incluir(self, **campos):
+        dados = {"csrf": self.token()}
+        dados.update(campos)
+        return self.cliente.post(
+            "/livros/T9999/conteudo-extra", data=dados, content_type="multipart/form-data"
+        )
+
+    def itens(self):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute(
+                """SELECT x.id, x.nome, x.descricao, x.foto_arquivo
+                     FROM livro_extra x JOIN livro l ON l.id = x.livro_id
+                    WHERE l.codigo = 'T9999' ORDER BY x.ordem, x.id"""
+            ).fetchall()
+
+    def arquivo_da_foto(self, item_id, extensao):
+        return os.path.join(CAPAS_TESTE, "extras", "livro", f"T9999-{item_id}.{extensao}")
+
+    def test_formulario_tem_o_marcador_e_grava_verdadeiro(self):
+        dados = {campo["chave"]: "" for campo in edicao.campos_formulario("livros")}
+        dados.update(titulo="Livro de teste", tem_conteudo_extra="on", csrf=self.token())
+        self.assertEqual(self.cliente.post("/livros/T9999/editar", data=dados).status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            marcado = conexao.execute(
+                "SELECT tem_conteudo_extra FROM livro WHERE codigo = 'T9999'"
+            ).fetchone()[0]
+        self.assertTrue(marcado)
+
+        # Sem a caixa marcada, o mesmo formulário volta o marcador para falso.
+        dados = {campo["chave"]: "" for campo in edicao.campos_formulario("livros")}
+        dados.update(titulo="Livro de teste", csrf=self.token())
+        self.cliente.post("/livros/T9999/editar", data=dados)
+        with psycopg.connect(URL) as conexao:
+            marcado = conexao.execute(
+                "SELECT tem_conteudo_extra FROM livro WHERE codigo = 'T9999'"
+            ).fetchone()[0]
+        self.assertFalse(marcado)
+
+    def test_pagina_de_edicao_mostra_o_gerenciador(self):
+        html = self.cliente.get("/livros/T9999/editar").get_data(as_text=True)
+        self.assertIn("Gerenciar conteúdo extra", html)
+        self.assertIn('name="tem_conteudo_extra"', html)
+
+    def test_inclui_item_com_foto(self):
+        resposta = self.incluir(
+            nome="Pôster", descricao="Pôster dobrável", foto=(io.BytesIO(PNG_MINIMO), "poster.png")
+        )
+        self.assertEqual(resposta.status_code, 302)
+        itens = self.itens()
+        self.assertEqual(len(itens), 1)
+        self.assertEqual(itens[0][1], "Pôster")
+        self.assertEqual(itens[0][2], "Pôster dobrável")
+        self.assertEqual(itens[0][3], f"extras/livro/T9999-{itens[0][0]}.png")
+        self.assertTrue(os.path.exists(self.arquivo_da_foto(itens[0][0], "png")))
+
+    def test_inclui_item_sem_foto(self):
+        self.assertEqual(self.incluir(nome="Marcador", descricao="Dois marcadores").status_code, 302)
+        self.assertEqual(
+            [(item[1], item[2], item[3]) for item in self.itens()],
+            [("Marcador", "Dois marcadores", None)],
+        )
+
+    def test_nome_vazio_mostra_erro(self):
+        resposta = self.incluir(nome="", descricao="Sem nome")
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Nome do item: preencha este campo", resposta.get_data(as_text=True))
+        self.assertEqual(self.itens(), [])
+
+    def test_foto_invalida_mostra_erro(self):
+        resposta = self.incluir(nome="Agenda", foto=(io.BytesIO(b"isto e texto"), "agenda.png"))
+        self.assertEqual(resposta.status_code, 400)
+        self.assertIn("Foto: use uma imagem JPG, PNG ou WEBP", resposta.get_data(as_text=True))
+        self.assertEqual(self.itens(), [])
+
+    def test_altera_o_item_sem_perder_a_foto(self):
+        self.incluir(nome="Minilivro", foto=(io.BytesIO(PNG_MINIMO), "mini.png"))
+        item = self.itens()[0]
+        resposta = self.cliente.post(
+            "/livros/T9999/conteudo-extra",
+            data={
+                "csrf": self.token(),
+                "extra_id": str(item[0]),
+                "nome": "Minilivro de bolso",
+                "descricao": "Conto extra",
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(resposta.status_code, 302)
+        alterado = self.itens()[0]
+        self.assertEqual(alterado[1], "Minilivro de bolso")
+        self.assertEqual(alterado[2], "Conto extra")
+        self.assertEqual(alterado[3], item[3])
+
+    def test_troca_a_foto_e_descarta_a_antiga(self):
+        self.incluir(nome="Pôster", foto=(io.BytesIO(PNG_MINIMO), "poster.png"))
+        item = self.itens()[0]
+        jpg = b"\xff\xd8\xff" + b"\x00" * 64
+        resposta = self.incluir(extra_id=str(item[0]), nome="Pôster", foto=(io.BytesIO(jpg), "poster.jpg"))
+        self.assertEqual(resposta.status_code, 302)
+        trocado = self.itens()[0]
+        self.assertEqual(trocado[3], f"extras/livro/T9999-{item[0]}.jpg")
+        self.assertTrue(os.path.exists(self.arquivo_da_foto(item[0], "jpg")))
+        self.assertFalse(os.path.exists(self.arquivo_da_foto(item[0], "png")))
+
+    def test_exclui_item_e_a_foto(self):
+        self.incluir(nome="Agenda", foto=(io.BytesIO(PNG_MINIMO), "agenda.png"))
+        item = self.itens()[0]
+        resposta = self.cliente.post(
+            f"/livros/T9999/conteudo-extra/{item[0]}/excluir", data={"csrf": self.token()}
+        )
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(self.itens(), [])
+        self.assertFalse(os.path.exists(self.arquivo_da_foto(item[0], "png")))
+
+    def test_excluir_item_inexistente_da_404(self):
+        resposta = self.cliente.post("/livros/T9999/conteudo-extra/999999/excluir", data={"csrf": self.token()})
+        self.assertEqual(resposta.status_code, 404)
+
+    def test_pagina_do_livro_mostra_o_botao(self):
+        self.incluir(nome="Pôster", descricao="Pôster dobrável")
+        html = self.cliente.get("/livros/T9999").get_data(as_text=True)
+        self.assertIn("Ver conteúdo extra", html)
+        self.assertIn("Pôster dobrável", html)
+
+    def test_livro_sem_extra_nao_mostra_o_botao(self):
+        html = self.cliente.get("/livros/T9999").get_data(as_text=True)
+        self.assertNotIn("Ver conteúdo extra", html)
+
+    def test_api_do_popup_traz_os_extras_e_o_marcador(self):
+        self.incluir(nome="Marcador", foto=(io.BytesIO(PNG_MINIMO), "marcador.png"))
+        dados = self.cliente.get("/api/livros/T9999").get_json()
+        self.assertEqual([item["nome"] for item in dados["extras_livro"]], ["Marcador"])
+        self.assertTrue(dados["extras_livro"][0]["foto"].startswith("extras/livro/T9999-"))
+        # O marcador do livro só entra nos campos do popup quando há conteúdo extra.
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("UPDATE livro SET tem_conteudo_extra = true WHERE codigo = 'T9999'")
+        dados = self.cliente.get("/api/livros/T9999").get_json()
+        self.assertIn({"rotulo": "Conteúdo extra", "valor": "Sim"}, dados["campos"])
+
+    def test_api_sem_marcador_nao_mostra_conteudo_extra(self):
+        dados = self.cliente.get("/api/livros/T9999").get_json()
+        self.assertEqual(dados["extras_livro"], [])
+        self.assertNotIn("Conteúdo extra", [campo["rotulo"] for campo in dados["campos"]])
 
 
 if __name__ == "__main__":

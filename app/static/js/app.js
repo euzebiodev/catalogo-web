@@ -56,6 +56,9 @@
       if (campo.rotulo === "Conteúdo extra" && dados.extras) {
         valor.append(" ", botaoVer(dados, dados.extras, "Itens extras", "Ver extras"));
       }
+      if (campo.rotulo === "Conteúdo extra" && dados.extras_livro && dados.extras_livro.length) {
+        valor.append(" ", botaoConteudoExtra(dados));
+      }
       if (campo.rotulo === "Série fechada" && dados.serie) {
         const botao = document.createElement("button");
         botao.type = "button";
@@ -152,6 +155,74 @@
 
     caixa.append(titulo, resumo, grade, fechar);
     caixa.showModal();
+  }
+
+  // Conteúdo extra do livro (pôster, marcadores, agendas...): grade de cartões com foto.
+  function abrirExtrasLivro(dados) {
+    const extras = dados.extras_livro;
+    let caixa = document.getElementById("extras-livro-popup");
+    if (!caixa) {
+      caixa = document.createElement("dialog");
+      caixa.id = "extras-livro-popup";
+      caixa.className = "dialogo-figurinhas dialogo-extras-livro";
+      caixa.addEventListener("click", (e) => {
+        if (e.target === caixa) caixa.close();
+      });
+      document.body.append(caixa);
+    }
+    caixa.replaceChildren();
+
+    const titulo = document.createElement("h3");
+    titulo.textContent = `Conteúdo extra de ${dados.titulo}`;
+
+    const resumo = document.createElement("p");
+    resumo.textContent = `${extras.length} ${extras.length === 1 ? "item" : "itens"}`;
+
+    const lista = document.createElement("ul");
+    lista.className = "extras-grade";
+    for (const extra of extras) {
+      const item = document.createElement("li");
+      item.className = "extra-card";
+      if (extra.foto) {
+        const img = document.createElement("img");
+        img.src = `/capas/${extra.foto}`;
+        img.alt = `Foto de ${extra.nome}`;
+        img.loading = "lazy";
+        item.append(img);
+      } else {
+        const sem = document.createElement("div");
+        sem.className = "sem-capa";
+        sem.textContent = "sem foto";
+        item.append(sem);
+      }
+      const nome = document.createElement("strong");
+      nome.textContent = extra.nome;
+      item.append(nome);
+      if (extra.descricao) {
+        const descricao = document.createElement("p");
+        descricao.textContent = extra.descricao;
+        item.append(descricao);
+      }
+      lista.append(item);
+    }
+
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "botao-secundario";
+    fechar.textContent = "Fechar";
+    fechar.addEventListener("click", () => caixa.close());
+
+    caixa.append(titulo, resumo, lista, fechar);
+    caixa.showModal();
+  }
+
+  function botaoConteudoExtra(dados) {
+    const botao = document.createElement("button");
+    botao.type = "button";
+    botao.className = "botao-secundario";
+    botao.textContent = "Ver conteúdo extra";
+    botao.addEventListener("click", () => abrirExtrasLivro(dados));
+    return botao;
   }
 
   function botaoVer(dados, parte, rotulo, texto) {

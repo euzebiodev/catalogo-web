@@ -86,10 +86,20 @@ def alterar_senha():
     ), (400 if erro else 200)
 
 
-def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
-    valores = edicao.ler_para_edicao(current_app, tipo, codigo)
+def _pagina_editar(
+    tipo,
+    codigo,
+    capa_erro=None,
+    capa_trocada=False,
+    extra_erro=None,
+    extra_valores=None,
+    valores=None,
+    erros=None,
+):
     if valores is None:
-        abort(404)
+        valores = edicao.ler_para_edicao(current_app, tipo, codigo)
+        if valores is None:
+            abort(404)
     return render_template(
         "editar.html",
         abas=catalogo.TIPOS,
@@ -98,7 +108,7 @@ def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
         codigo=codigo,
         campos=edicao.campos_formulario(tipo),
         valores=valores,
-        erros=[],
+        erros=erros or [],
         salvo=request.args.get("salvo"),
         capa_arquivo=edicao.capa_atual(current_app, tipo, codigo),
         capa_erro=capa_erro,
@@ -109,6 +119,12 @@ def _pagina_editar(tipo, codigo, capa_erro=None, capa_trocada=False):
         extras_salvos=bool(request.args.get("extras")),
         serie=edicao.serie_do_gibi(current_app, codigo) if tipo == "gibis" else None,
         serie_salva=bool(request.args.get("serie")),
+        # Conteúdo extra dos livros (pôster, marcadores, agendas, minilivros...).
+        extras_livro=edicao.extras_do_livro(current_app, codigo) if tipo == "livros" else None,
+        extra_salvo=bool(request.args.get("extra")),
+        extra_removido=bool(request.args.get("extra_excluido")),
+        extra_erro=extra_erro,
+        extra_valores=extra_valores or {},
     )
 
 
@@ -220,19 +236,73 @@ def salvar_edicao(tipo, codigo):
 
     if erros:
         # Mostra o que foi digitado, para não perder a edição.
-        return render_template(
-            "editar.html",
-            abas=catalogo.TIPOS,
-            tipo_ativo=tipo,
-            tipo=tipo,
-            codigo=codigo,
-            campos=edicao.campos_formulario(tipo),
+        return _pagina_editar(
+            tipo,
+            codigo,
             valores={chave: request.form.get(chave, "") for chave in valores_brutos(tipo)},
             erros=erros,
-            salvo=None,
         ), 400
 
     return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, salvo=1))
+
+
+@bp.post("/<tipo>/<codigo>/conteudo-extra")
+@auth.exige_login
+def salvar_extra_livro(tipo, codigo):
+    """Inclui (sem extra_id) ou altera um item do conteúdo extra do livro."""
+    if tipo != "livros":
+        abort(404)
+    auth.conferir_csrf()
+
+    extra_id = request.form.get("extra_id", "")
+    valores = {
+        "extra_id": extra_id if extra_id.isdigit() else "",
+        "nome": request.form.get("nome", ""),
+        "descricao": request.form.get("descricao", ""),
+    }
+
+    foto = None
+    erro = None
+    arquivo = request.files.get("foto")
+    if arquivo is not None and arquivo.filename:
+        # Lê um byte além do limite, para saber se o arquivo passou dele.
+        dados = arquivo.read(edicao.TAMANHO_MAX_FOTO + 1)
+        if len(dados) > edicao.TAMANHO_MAX_FOTO:
+            erro = "Foto: a imagem passa de 5 MB."
+        elif edicao.tipo_da_imagem(dados) is None:
+            erro = "Foto: use uma imagem JPG, PNG ou WEBP."
+        else:
+            foto = dados
+
+    if erro is None:
+        try:
+            salvou = edicao.salvar_extra(
+                current_app,
+                codigo,
+                int(valores["extra_id"]) if valores["extra_id"] else None,
+                valores["nome"],
+                valores["descricao"],
+                foto,
+            )
+        except ValueError as falha:
+            erro = str(falha)
+        else:
+            if not salvou:
+                abort(404)
+            return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, extra=1))
+
+    return _pagina_editar(tipo, codigo, extra_erro=erro, extra_valores=valores), 400
+
+
+@bp.post("/<tipo>/<codigo>/conteudo-extra/<int:extra_id>/excluir")
+@auth.exige_login
+def excluir_extra_livro(tipo, codigo, extra_id):
+    if tipo != "livros":
+        abort(404)
+    auth.conferir_csrf()
+    if not edicao.excluir_extra(current_app, codigo, extra_id):
+        abort(404)
+    return redirect(url_for("catalogo.editar", tipo=tipo, codigo=codigo, extra_excluido=1))
 
 
 @bp.post("/<tipo>/<codigo>/excluir")
