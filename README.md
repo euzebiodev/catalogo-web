@@ -135,6 +135,7 @@ Testes da edição (rodam no banco do `.env`, com um registro temporário T9999 
 
 - Itens por página: `ITENS_POR_PAGINA` em `app/__init__.py` (padrão 24).
 - Campos do popup e seus rótulos: `CAMPOS_POPUP` em `app/catalogo.py`.
+- Texto que aparece sob a capa (sinopse nos livros e gibis, observações no vinil e no álbum): `SINOPSE` em `app/catalogo.py`. Ele sai da lista de campos do popup para não aparecer duas vezes.
 - Tema claro e escuro: variáveis CSS em `app/static/css/style.css`.
 
 ## Observações
