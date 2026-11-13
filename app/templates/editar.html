@@ -131,12 +131,14 @@
       {% if extra_erro %}
         <p class="aviso erro" role="alert">{{ extra_erro }}</p>
       {% endif %}
+      <p class="extras-livro-dica">Para a foto, arraste a imagem para a área tracejada, clique nela para escolher um arquivo ou cole com Ctrl+V. A foto é gravada quando você clicar em Salvar item ou Adicionar item.</p>
+      <p class="extras-livro-dica" id="extras-livro-dica" role="status"></p>
 
       {% if extras_livro %}
         <ul class="extra-lista">
           {% for extra in extras_livro %}
             <li class="extra-item">
-              <div class="extra-foto">
+              <div class="extra-foto" tabindex="0" title="Clique e cole a nova foto com Ctrl+V">
                 {% if extra.foto_arquivo %}
                   <img src="{{ url_for('catalogo.capa', arquivo=extra.foto_arquivo) }}" alt="Foto de {{ extra.nome }}">
                 {% else %}
@@ -155,9 +157,11 @@
                   <span>Descrição</span>
                   <textarea name="descricao" rows="2" maxlength="2000">{{ extra.descricao or '' }}</textarea>
                 </label>
-                <label>
-                  <span>Trocar foto (JPG, PNG ou WEBP, até 5 MB)</span>
-                  <input type="file" name="foto" accept="image/jpeg,image/png,image/webp">
+                <label class="zona-foto" tabindex="0">
+                  <strong>Arraste a foto aqui</strong>
+                  <span>ou clique para escolher. Também pode colar com Ctrl+V (JPG, PNG ou WEBP, até 5 MB)</span>
+                  <img class="zona-foto-previa" alt="Nova foto de {{ extra.nome }}" hidden>
+                  <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" class="campo-oculto">
                 </label>
                 <div class="extra-acoes">
                   <button type="submit">Salvar item</button>
@@ -194,9 +198,11 @@
           <textarea name="descricao" rows="2" maxlength="2000"
                     placeholder="Tamanho, estado, o que acompanha...">{{ '' if extra_valores.get('extra_id') else extra_valores.get('descricao', '') }}</textarea>
         </label>
-        <label>
-          <span>Foto (JPG, PNG ou WEBP, até 5 MB)</span>
-          <input type="file" name="foto" accept="image/jpeg,image/png,image/webp">
+        <label class="zona-foto" tabindex="0">
+          <strong>Arraste a foto aqui</strong>
+          <span>ou clique para escolher. Também pode colar com Ctrl+V (JPG, PNG ou WEBP, até 5 MB)</span>
+          <img class="zona-foto-previa" alt="Foto do novo item" hidden>
+          <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" class="campo-oculto">
         </label>
         <div class="extra-acoes">
           <button type="submit">Adicionar item</button>
@@ -476,6 +482,123 @@
     });
     // Voltando de um erro, a caixa já abre com a mensagem e o que foi digitado.
     if (dialogo.dataset.abrir === "1") dialogo.showModal();
+  })();
+</script>
+<script>
+  (() => {
+    const dialogo = document.getElementById("dialogo-extras-livro");
+    if (!dialogo) return;
+    const zonas = Array.from(dialogo.querySelectorAll(".zona-foto"));
+    let ativa = null; // área que recebe a próxima imagem colada
+
+    function avisar(texto) {
+      const dica = document.getElementById("extras-livro-dica");
+      if (dica) dica.textContent = texto;
+    }
+
+    function ehImagem(arquivo) {
+      return Boolean(arquivo) && String(arquivo.type || "").startsWith("image/");
+    }
+
+    // Põe a imagem no campo do formulário (quando veio de arrastar ou colar) e
+    // mostra a prévia. A foto só vai para o servidor ao salvar o item.
+    function usarFoto(zona, arquivo, guardarNoCampo) {
+      if (!ehImagem(arquivo)) {
+        avisar("Use uma imagem JPG, PNG ou WEBP.");
+        return;
+      }
+      if (guardarNoCampo) {
+        const campo = zona.querySelector('input[type="file"]');
+        const transferencia = new DataTransfer();
+        transferencia.items.add(arquivo);
+        campo.files = transferencia.files;
+      }
+
+      let previa = zona.querySelector(".zona-foto-previa");
+      if (!previa) {
+        previa = document.createElement("img");
+        previa.className = "zona-foto-previa";
+        previa.alt = "Nova foto";
+        zona.append(previa);
+      }
+      previa.src = URL.createObjectURL(arquivo);
+      previa.hidden = false;
+      zona.classList.add("foto-nova");
+
+      // Num item que já existe, a foto nova aparece na hora ao lado do formulário.
+      const item = zona.closest(".extra-item");
+      const quadro = item && item.querySelector(".extra-foto");
+      if (quadro) {
+        const imagem = document.createElement("img");
+        imagem.src = previa.src;
+        imagem.alt = previa.alt;
+        quadro.replaceChildren(imagem);
+      }
+
+      const formulario = zona.closest("form");
+      const nome = formulario && formulario.querySelector('[name="nome"]');
+      const titulo = nome ? nome.value.trim() : "";
+      avisar(titulo
+        ? `Nova foto de ${titulo} pronta. Clique em Salvar item para gravar.`
+        : "Foto pronta. Clique em Adicionar item para gravar.");
+    }
+
+    zonas.forEach((zona) => {
+      const campo = zona.querySelector('input[type="file"]');
+      zona.addEventListener("click", () => { ativa = zona; });
+      zona.addEventListener("focus", () => {
+        ativa = zona;
+        zona.classList.add("foco-colagem");
+      });
+      zona.addEventListener("blur", () => zona.classList.remove("foco-colagem"));
+      // Escolhida pelo seletor de arquivos: o próprio campo já tem o arquivo.
+      campo.addEventListener("change", () => usarFoto(zona, campo.files[0], false));
+      zona.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zona.classList.add("arrastando");
+        ativa = zona;
+      });
+      zona.addEventListener("dragleave", () => zona.classList.remove("arrastando"));
+      zona.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zona.classList.remove("arrastando");
+        usarFoto(zona, e.dataTransfer.files[0], true);
+      });
+    });
+
+    // Clicar na foto atual do item escolhe aquela área para a colagem.
+    dialogo.querySelectorAll(".extra-item").forEach((item) => {
+      const zona = item.querySelector(".zona-foto");
+      const quadro = item.querySelector(".extra-foto");
+      if (!zona || !quadro) return;
+      const escolher = () => {
+        ativa = zona;
+        zona.focus();
+      };
+      quadro.addEventListener("click", escolher);
+      quadro.addEventListener("focus", escolher);
+    });
+
+    // Ctrl+V com uma imagem: vai para a área do formulário onde está o foco ou,
+    // sem escolha, para o formulário de inclusão. Colar texto continua normal.
+    document.addEventListener("paste", (e) => {
+      if (!dialogo.open) return;
+      const item = Array.from(e.clipboardData?.items || []).find(
+        (i) => i.kind === "file" && i.type.startsWith("image/")
+      );
+      if (!item) return;
+      const arquivo = item.getAsFile();
+      if (!arquivo) return;
+
+      const perto = e.target && e.target.closest ? e.target.closest(".extra-form") : null;
+      const zona = (perto && perto.querySelector(".zona-foto"))
+        || (ativa && dialogo.contains(ativa) ? ativa : null)
+        || dialogo.querySelector(".extra-form-novo .zona-foto")
+        || zonas[0];
+      if (!zona) return;
+      e.preventDefault();
+      usarFoto(zona, arquivo, true);
+    });
   })();
 </script>
 {% endblock %}

@@ -954,6 +954,22 @@ ul.aviso {
   margin-top: 0;
 }
 
+.extras-livro-dica {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.extras-livro-dica:empty {
+  display: none;
+}
+
+.extra-foto:focus-visible {
+  outline: 2px solid #d99a6c;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .extra-lista {
   display: grid;
   gap: 12px;
@@ -973,6 +989,7 @@ ul.aviso {
 
 .extra-foto {
   flex: 0 0 96px;
+  cursor: pointer;
 }
 
 .extra-foto img {
@@ -1004,6 +1021,57 @@ ul.aviso {
 .extra-form label {
   display: grid;
   gap: 4px;
+}
+
+/* Foto do item extra: arrastar, escolher pelo seletor ou colar com Ctrl+V. */
+.extra-form .zona-foto {
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  min-height: 96px;
+  padding: 12px;
+  border: 2px dashed #d99a6c;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.extra-form .zona-foto strong {
+  font-size: 0.95rem;
+}
+
+.extra-form .zona-foto span {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.extra-form .zona-foto:hover,
+.extra-form .zona-foto.arrastando,
+.extra-form .zona-foto:focus-visible,
+.extra-form .zona-foto.foco-colagem {
+  background: rgba(217, 154, 108, 0.15);
+}
+
+.extra-form .zona-foto:focus-visible,
+.extra-form .zona-foto.foco-colagem {
+  outline: 2px solid #d99a6c;
+  outline-offset: 2px;
+}
+
+.extra-form .zona-foto.foto-nova {
+  border-style: solid;
+  border-color: #7fb069;
+}
+
+.zona-foto-previa {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 6px;
+}
+
+.zona-foto-previa[hidden] {
+  display: none;
 }
 
 .extra-form-novo {

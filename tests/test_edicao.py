@@ -992,6 +992,16 @@ class ConteudoExtraLivroTest(unittest.TestCase):
         self.assertIn("Gerenciar conteúdo extra", html)
         self.assertIn('name="tem_conteudo_extra"', html)
 
+    def test_item_extra_tem_area_para_arrastar_e_colar_a_foto(self):
+        self.incluir(nome="Marcador")
+        html = self.cliente.get("/livros/T9999/editar").get_data(as_text=True)
+        # Uma área para cada item cadastrado e outra no formulário de inclusão.
+        self.assertEqual(html.count('class="zona-foto"'), len(self.itens()) + 1)
+        self.assertIn("Arraste a foto aqui", html)
+        self.assertIn("Ctrl+V", html)
+        self.assertIn("zona-foto-previa", html)
+        self.assertIn('name="foto"', html)
+
     def test_inclui_item_com_foto(self):
         resposta = self.incluir(
             nome="Pôster", descricao="Pôster dobrável", foto=(io.BytesIO(PNG_MINIMO), "poster.png")
