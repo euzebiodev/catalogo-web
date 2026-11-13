@@ -12,6 +12,12 @@
       {% else %}
         <div class="sem-capa"><span>{{ dados.titulo }}</span></div>
       {% endif %}
+      {% if dados.sinopse %}
+        <figcaption class="sinopse">
+          <h3>{{ dados.sinopse_rotulo }}</h3>
+          <p>{{ dados.sinopse }}</p>
+        </figcaption>
+      {% endif %}
     </figure>
     <div class="item-texto">
       <h2>{{ dados.titulo }}</h2>

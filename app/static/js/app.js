@@ -20,6 +20,19 @@
       figura.append(vazio);
     }
 
+    // A sinopse (ou as observações, no vinil e no álbum) fica sob a capa, no
+    // espaço que sobra ao lado da ficha.
+    if (dados.sinopse) {
+      const bloco = document.createElement("section");
+      bloco.className = "sinopse";
+      const rotulo = document.createElement("h3");
+      rotulo.textContent = dados.sinopse_rotulo;
+      const paragrafo = document.createElement("p");
+      paragrafo.textContent = dados.sinopse;
+      bloco.append(rotulo, paragrafo);
+      figura.append(bloco);
+    }
+
     const texto = document.createElement("div");
     texto.className = "detalhe-texto";
 

@@ -351,6 +351,27 @@ body {
   height: auto;
 }
 
+/* Sinopse (ou observações, no vinil e no álbum) sob a capa: ocupa o espaço que
+   sobra na coluna da imagem. */
+.sinopse {
+  margin: 16px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.sinopse h3 {
+  margin: 0 0 6px;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.sinopse p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
 .detalhe-texto h2 {
   margin: 0 0 4px;
   font-size: 1.3rem;

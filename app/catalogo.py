@@ -393,6 +393,15 @@ CAMPOS_POPUP = {
     ],
 }
 
+# Texto longo que fica sob a capa (no espaço que sobra ao lado da ficha), e não na
+# lista de campos: livros e gibis mostram a sinopse, vinil e álbum as observações.
+SINOPSE = {
+    "livros": ("Sinopse", "sinopse"),
+    "gibis": ("Sinopse", "sinopse"),
+    "vinil": ("Observações", "notas"),
+    "album": ("Observações", "notas"),
+}
+
 
 def filtros_da_url(tipo, args):
     """Lê só os parâmetros de filtro conhecidos e descarta os vazios."""
@@ -487,8 +496,12 @@ def detalhe(app, tipo, codigo):
         # Há conteúdo extra quando a caixa está marcada ou quando há itens extras informados.
         linha["tem_extra"] = bool(linha["tem_extra"]) or bool(linha["extra_total"])
 
+    # A sinopse sai da lista de campos: quem a mostra é o bloco sob a capa.
+    rotulo_sinopse, chave_sinopse = SINOPSE[tipo]
     campos = []
     for rotulo, chave in CAMPOS_POPUP[tipo]:
+        if chave == chave_sinopse:
+            continue
         valor = formatar(linha.get(chave))
         if valor:
             campos.append({"rotulo": rotulo, "valor": valor})
@@ -501,6 +514,8 @@ def detalhe(app, tipo, codigo):
         "capa_arquivo": linha["capa_arquivo"],
         "capa_fonte": linha["capa_fonte"],
         "campos": campos,
+        "sinopse": formatar(linha.get(chave_sinopse)),
+        "sinopse_rotulo": rotulo_sinopse,
         "faixas": faixas,
         "figurinhas": _figurinhas(app, linha, codigo) if tipo == "album" else None,
         "extras": _extras(app, linha, codigo) if tipo == "album" and linha["tem_extra"] else None,
