@@ -4,7 +4,6 @@ from decimal import Decimal
 from typing import NamedTuple
 
 from .db import fetch_all, fetch_one
-from .edicao import serie_do_gibi
 
 TIPOS = {
     "livros": {"nome": "Livros", "tabela": "livro"},
@@ -163,13 +162,6 @@ ORDENACOES = {
     },
 }
 
-# Capa de um gibi: se for série fechada, a capa do número 1 aparece sempre que existir.
-CAPA_GIBI = (
-    "CASE WHEN g.serie_fechada THEN COALESCE("
-    "(SELECT s.capa_arquivo FROM gibi_serie_item s WHERE s.gibi_id = g.id AND s.numero = 1), "
-    "g.capa_arquivo) ELSE g.capa_arquivo END"
-)
-
 SQL_LISTA = {
     "livros": """
         SELECT l.codigo, l.titulo, l.capa_arquivo,
@@ -182,7 +174,7 @@ SQL_LISTA = {
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "gibis": """
-        SELECT g.codigo, g.titulo, """ + CAPA_GIBI + """ AS capa_arquivo,
+        SELECT g.codigo, g.titulo, g.capa_arquivo, g.numero_serie,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
                  WHERE gp.gibi_id = g.id) AS subtitulo
@@ -217,20 +209,6 @@ SQL_TOTAL = {
     "album": "SELECT count(*) AS total FROM album_figurinha a {where}",
 }
 
-# Contagem de itens do acervo, não de registros: uma série fechada vale um item por
-# número marcado (os volumes que estão na estante). Os demais tipos contam como SQL_TOTAL.
-SQL_ITENS = {
-    "gibis": """
-        SELECT COALESCE(sum(
-                   CASE WHEN g.serie_fechada AND COALESCE(g.serie_total, 0) > 0
-                        THEN (SELECT count(*) FROM gibi_serie_item s
-                               WHERE s.gibi_id = g.id AND s.marcado)
-                        ELSE 1 END), 0)::bigint AS total
-        FROM gibi g
-        {where}
-    """,
-}
-
 SQL_DETALHE = {
     "livros": """
         SELECT l.codigo, l.titulo, l.paginas, l.ano_publicacao, l.isbn10, l.isbn13,
@@ -253,8 +231,8 @@ SQL_DETALHE = {
         SELECT g.codigo, g.titulo, g.categoria, g.paginas, g.ano_publicacao,
                g.isbn10, g.isbn13, g.encadernacao, g.clube_do_livro, g.conservacao,
                g.aquisicao_data, g.preco, g.sinopse, g.nota, g.capa_fonte,
-               g.numero_edicao, g.serie_fechada, g.serie_total, g.serie_completa,
-               """ + CAPA_GIBI + """ AS capa_arquivo,
+               g.serie, g.nome_serie, g.numero_serie, g.numero_edicao,
+               g.capa_arquivo,
                ed.nome AS editora, est.nome AS estante,
                (SELECT string_agg(p.nome || ' (' || gp.papel || ')', ', ' ORDER BY p.nome)
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
@@ -358,10 +336,10 @@ CAMPOS_POPUP = {
     "gibis": [
         ("Autores e equipe", "pessoas"),
         ("Categoria", "categoria"),
+        ("Série", "serie"),
+        ("Nome da série", "nome_serie"),
+        ("Número da série", "numero_serie"),
         ("Número da edição", "numero_edicao"),
-        ("Série fechada", "serie_fechada"),
-        ("Total de números", "serie_total"),
-        ("Série completa", "serie_completa"),
         ("Editora", "editora"),
         ("Ano", "ano_publicacao"),
         ("Páginas", "paginas"),
@@ -490,13 +468,12 @@ def listar(app, tipo, pagina, por_pagina, filtros=None, ordem="codigo"):
 
 
 def contar_itens(app, tipo, filtros=None):
-    """Quantos itens o acervo tem, contando os números marcados das séries fechadas.
+    """Quantos itens o acervo tem, com os mesmos filtros da lista.
 
-    É diferente do total de registros devolvido por listar(), que é o que pagina a lista.
+    Cada registro é um item: os números de uma série são gibis próprios.
     """
     where, params = montar_filtro(tipo, filtros or {})
-    consulta = SQL_ITENS.get(tipo, SQL_TOTAL[tipo])
-    return fetch_one(app, consulta.format(where=where), params)["total"]
+    return fetch_one(app, SQL_TOTAL[tipo].format(where=where), params)["total"]
 
 
 def detalhe(app, tipo, codigo):
@@ -535,7 +512,6 @@ def detalhe(app, tipo, codigo):
         "extras": _extras(app, linha, codigo) if tipo == "album" and linha["tem_extra"] else None,
         # Livros: os itens extras cadastrados (pôster, marcadores, agendas...).
         "extras_livro": _extras_do_livro(app, codigo) if tipo == "livros" else None,
-        "serie": serie_do_gibi(app, codigo) if tipo == "gibis" and linha["serie_fechada"] and linha["serie_total"] else None,
     }
 
 

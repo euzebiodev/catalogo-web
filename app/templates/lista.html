@@ -90,6 +90,9 @@
               <span class="marca-selecao" aria-hidden="true"></span>
             {% endif %}
             <span class="cartao-titulo">{{ item.titulo }}</span>
+            {% if item.numero_serie %}
+              <span class="cartao-serie">nº {{ item.numero_serie }}</span>
+            {% endif %}
             {% if item.subtitulo %}
               <span class="cartao-subtitulo">{{ item.subtitulo }}</span>
             {% endif %}

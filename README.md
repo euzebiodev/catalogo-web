@@ -105,6 +105,8 @@ Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora
 
 Cada livro, gibi e vinil tem um link "Editar campos" no popup. A edição mexe nos campos próprios do item (título, editora, ISBN, preço, observações etc.). Nos livros, o campo Autor(es) aceita vários nomes separados por vírgula. Gêneros e faixas ainda não são editados por aqui. Editora, estante e gravadora são informadas pelo nome: se o nome não existir, é cadastrado.
 
+Nos gibis, cada número de uma série é um **item do acervo**, com código, capa e ISBN próprios. No formulário, a caixa **Série** marca o item como parte de uma série; **Nome da série** (ex.: `Bakuman`) e **Número da série** dizem qual número é, e a lista mostra `nº N` sob o título. O controle antigo de série fechada (marcar números, capa por número e ISBN por número) saiu do sistema. Em bancos que já existem, aplique `db/migracoes/020_gibi_serie_individual.sql`: ele cria `serie`, `nome_serie` e `numero_serie`, converte cada número marcado em um gibi individual (o registro antigo vira o primeiro número, com o mesmo código e QR code; os demais recebem o próximo código da mesma letra, ex.: `M0002`) e remove `serie_fechada`, `serie_total`, `serie_completa` e a tabela `gibi_serie_item`. As capas continuam nos mesmos arquivos, em `CAPAS_DIR/gibi/serie/`.
+
 A edição fica **desligada** até que todas estas variáveis estejam no `.env` (ou no arquivo de configuração do servidor):
 
 - `DATABASE_URL_ESCRITA`: conexão do usuário `catalogo_escrita`, que só tem escrita nas colunas editáveis (`db/migracoes/003_permissoes_escrita.sql`).

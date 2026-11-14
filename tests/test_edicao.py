@@ -437,25 +437,27 @@ class FichasTest(unittest.TestCase):
 
 
 class SerieGibiTest(unittest.TestCase):
-    """Série fechada de gibi: números marcados e capa por número, num gibi temporário H9999."""
+    """Série do gibi: cada número é um item, com nome e número da série no formulário."""
 
     @classmethod
     def setUpClass(cls):
-        with psycopg.connect(URL) as conexao:
-            conexao.execute("DELETE FROM gibi WHERE codigo = 'H9999'")
-            conexao.execute(
-                "INSERT INTO gibi (codigo, titulo, serie_fechada, serie_total) VALUES ('H9999', 'Série de teste', true, 3)"
-            )
+        cls.limpar()
 
     @classmethod
     def tearDownClass(cls):
+        cls.limpar()
+
+    @staticmethod
+    def limpar():
         with psycopg.connect(URL) as conexao:
             conexao.execute("DELETE FROM gibi WHERE codigo = 'H9999'")
 
     def setUp(self):
+        self.limpar()
         with psycopg.connect(URL) as conexao:
             conexao.execute(
-                "DELETE FROM gibi_serie_item WHERE gibi_id = (SELECT id FROM gibi WHERE codigo = 'H9999')"
+                "INSERT INTO gibi (codigo, titulo, serie, nome_serie, numero_serie)"
+                " VALUES ('H9999', 'Série de teste', true, 'Série de teste', 2)"
             )
             conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
         self.cliente = criar_app().test_client()
@@ -467,44 +469,50 @@ class SerieGibiTest(unittest.TestCase):
         html = self.cliente.get("/gibis/H9999/editar").get_data(as_text=True)
         return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
 
-    def test_marca_numeros_e_grava_capa(self):
+    def valores(self):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute(
+                "SELECT serie, nome_serie, numero_serie FROM gibi WHERE codigo = 'H9999'"
+            ).fetchone()
+
+    def test_formulario_tem_os_campos_da_serie(self):
+        html = self.cliente.get("/gibis/H9999/editar").get_data(as_text=True)
+        self.assertIn('type="checkbox" name="serie"', html)
+        self.assertIn('name="nome_serie"', html)
+        self.assertIn('name="numero_serie"', html)
+        # O controle antigo (série fechada e números com capa) saiu da tela.
+        self.assertNotIn("Gerenciar números", html)
+        self.assertNotIn('name="serie_fechada"', html)
+        self.assertNotIn('name="serie_total"', html)
+
+    def test_salvar_grava_nome_e_numero_da_serie(self):
         resposta = self.cliente.post(
-            "/gibis/H9999/serie",
+            "/gibis/H9999/editar",
             data={
                 "csrf": self.token(),
-                "numero": ["1", "2"],
-                "capa_2": (io.BytesIO(PNG_MINIMO), "n2.png"),
+                "titulo": "Série de teste",
+                "serie": "on",
+                "nome_serie": "Bakuman",
+                "numero_serie": "7",
             },
-            content_type="multipart/form-data",
         )
         self.assertEqual(resposta.status_code, 302)
-        with psycopg.connect(URL) as conexao:
-            linhas = conexao.execute(
-                """SELECT s.numero, s.marcado, s.capa_arquivo FROM gibi_serie_item s
-                     JOIN gibi g ON g.id = s.gibi_id WHERE g.codigo = 'H9999' ORDER BY s.numero"""
-            ).fetchall()
-        self.assertEqual([(n, m) for n, m, _ in linhas], [(1, True), (2, True), (3, False)])
-        self.assertEqual(linhas[1][2], "gibi/serie/H9999-2.png")
-        self.assertTrue(os.path.exists(os.path.join(CAPAS_TESTE, "gibi", "serie", "H9999-2.png")))
+        self.assertEqual(self.valores(), (True, "Bakuman", 7))
 
-    def test_serie_completa_so_com_todos_os_numeros(self):
-        def completa():
-            with psycopg.connect(URL) as conexao:
-                return conexao.execute("SELECT serie_completa FROM gibi WHERE codigo = 'H9999'").fetchone()[0]
-
-        self.cliente.post("/gibis/H9999/serie", data={"csrf": self.token(), "numero": ["1", "2"]})
-        self.assertFalse(completa())
-        self.cliente.post("/gibis/H9999/serie", data={"csrf": self.token(), "numero": ["1", "2", "3"]})
-        self.assertTrue(completa())
-
-    def test_recusa_capa_que_nao_e_imagem(self):
+    def test_desmarcar_serie_grava_falso(self):
         resposta = self.cliente.post(
-            "/gibis/H9999/serie",
-            data={"csrf": self.token(), "capa_1": (io.BytesIO(b"texto"), "x.png")},
-            content_type="multipart/form-data",
+            "/gibis/H9999/editar",
+            data={"csrf": self.token(), "titulo": "Série de teste", "nome_serie": "Bakuman"},
         )
-        self.assertEqual(resposta.status_code, 400)
-        self.assertIn("Use uma imagem JPG, PNG ou WEBP", resposta.get_data(as_text=True))
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(self.valores(), (False, "Bakuman", None))
+
+    def test_popup_mostra_serie_nome_e_numero(self):
+        dados = self.cliente.get("/api/gibis/H9999").get_json()
+        campos = {campo["rotulo"]: campo["valor"] for campo in dados["campos"]}
+        self.assertEqual(campos["Série"], "Sim")
+        self.assertEqual(campos["Nome da série"], "Série de teste")
+        self.assertEqual(campos["Número da série"], "2")
 
 
 def limpar_novos():
@@ -826,7 +834,7 @@ class GeneroGibiVinilTest(unittest.TestCase):
 
     def test_gibi_grava_generos(self):
         app = criar_app()
-        edicao.criar(app, "gibis", "H9996", {"titulo": "Gibi de teste", "serie_fechada": False, "generos": "Gênero de teste A, Gênero de teste B"})
+        edicao.criar(app, "gibis", "H9996", {"titulo": "Gibi de teste", "generos": "Gênero de teste A, Gênero de teste B"})
         self.assertEqual(self.generos_do("gibi_genero", "gibi_id", "H9996", "gibi"),
                          ["Gênero de teste A", "Gênero de teste B"])
 
@@ -856,7 +864,7 @@ def limpar_contagem():
 
 
 class ContagemItensTest(unittest.TestCase):
-    """O resumo da lista conta cada número marcado de uma série fechada como um item."""
+    """Cada número de uma série é um item do acervo: a lista conta um por registro."""
 
     @classmethod
     def setUpClass(cls):
@@ -870,42 +878,27 @@ class ContagemItensTest(unittest.TestCase):
         with psycopg.connect(URL) as conexao:
             conexao.execute("DELETE FROM gibi WHERE codigo IN ('H9998', 'H9997')")
             conexao.execute(
-                "INSERT INTO gibi (codigo, titulo, serie_fechada, serie_total)"
-                " VALUES ('H9998', 'Série de contagem', true, 3)"
+                "INSERT INTO gibi (codigo, titulo, serie, nome_serie, numero_serie)"
+                " VALUES ('H9998', 'Série de contagem', true, 'Série de contagem', 1)"
             )
-            conexao.execute("INSERT INTO gibi (codigo, titulo) VALUES ('H9997', 'Gibi avulso de contagem')")
+            conexao.execute(
+                "INSERT INTO gibi (codigo, titulo, serie, nome_serie, numero_serie)"
+                " VALUES ('H9997', 'Série de contagem', true, 'Série de contagem', 2)"
+            )
 
-    def marcar(self, numeros):
-        with psycopg.connect(URL) as conexao:
-            for numero in range(1, 4):
-                conexao.execute(
-                    """INSERT INTO gibi_serie_item (gibi_id, numero, marcado)
-                       SELECT id, %s, %s FROM gibi WHERE codigo = 'H9998'""",
-                    (numero, numero in numeros),
-                )
-
-    def test_conta_um_item_por_numero_marcado(self):
-        self.marcar({1, 2})
+    def test_conta_um_item_por_numero_da_serie(self):
         app = criar_app()
         with app.app_context():
-            # Dois números da série mais o gibi avulso; o filtro limita aos itens do teste.
-            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "contagem"}), 3)
+            # Dois números da série; o filtro limita aos itens do teste.
+            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "contagem"}), 2)
 
-    def test_serie_sem_numero_marcado_nao_conta(self):
-        app = criar_app()
-        with app.app_context():
-            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "Série de contagem"}), 0)
-
-    def test_gibi_sem_serie_conta_um(self):
-        app = criar_app()
-        with app.app_context():
-            self.assertEqual(catalogo.contar_itens(app, "gibis", {"q": "Gibi avulso de contagem"}), 1)
-
-    def test_pagina_mostra_o_total_de_itens(self):
-        self.marcar({1, 2})
+    def test_pagina_mostra_o_numero_de_cada_item(self):
         html = criar_app().test_client().get("/gibis?q=contagem").get_data(as_text=True)
-        self.assertIn("3 itens", html)
-        self.assertIn("(2 cadastros)", html)
+        self.assertIn("2 itens", html)
+        self.assertIn("nº 1", html)
+        self.assertIn("nº 2", html)
+        # Todo registro é um item: a diferença entre itens e cadastros não existe mais.
+        self.assertNotIn("cadastros", html)
 
 
 def limpar_extras_livro():
