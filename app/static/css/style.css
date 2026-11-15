@@ -795,6 +795,19 @@ body {
   color: var(--destaque);
 }
 
+/* Exemplar autografado: selo sob o título, em todos os tipos do acervo. */
+.cartao-autografado {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--destaque);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--destaque);
+}
+
 .voltar {
   margin: 0 0 8px;
   font-size: 0.9rem;

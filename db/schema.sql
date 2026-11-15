@@ -816,3 +816,14 @@ CREATE TABLE IF NOT EXISTS livro_extra (
 );
 
 CREATE INDEX IF NOT EXISTS idx_livro_extra_livro ON livro_extra USING btree (livro_id);
+
+--
+-- Exemplar autografado (migracoes/021_autografado.sql)
+--
+-- Vale para todos os tipos do acervo: o autógrafo é do exemplar, não do título.
+-- Os GRANTs para catalogo_leitura e catalogo_escrita estão na migração 021.
+
+ALTER TABLE livro ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
+ALTER TABLE gibi ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
+ALTER TABLE lp_vinil ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
+ALTER TABLE album_figurinha ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;

@@ -122,6 +122,8 @@ Na página "Editar campos" também dá para trocar a capa: arrastando o arquivo 
 
 Nos livros, a caixa **Tem conteúdo extra** marca o item no popup e o botão **Gerenciar conteúdo extra** cadastra pôster, marcadores, agendas, minilivros e afins. Cada item tem nome, descrição e uma foto opcional (JPG, PNG ou WEBP, até 5 MB), que entra arrastando o arquivo para a área tracejada do item, clicando nela ou colando com Ctrl+V; a foto é gravada ao clicar em **Salvar item** e fica guardada em `CAPAS_DIR/extras/livro/<codigo>-<id>.<ext>`. O visitante vê os itens no botão **Ver conteúdo extra** da página do livro e do popup. Em bancos que já existem, aplique antes `db/migracoes/019_livro_conteudo_extra.sql`.
 
+Cada exemplar pode ser marcado como **Autografado**, nos quatro tipos do acervo (livros, gibis, vinis e álbuns de figurinhas): a caixa aparece no formulário de cadastro e no de edição. O popup mostra `Autografado: Sim` só quando a caixa está marcada (item sem autógrafo não repete "Não", como acontece com o conteúdo extra) e a lista mostra um selo **Autografado** sob o título. Em bancos que já existem, aplique `db/migracoes/021_autografado.sql`.
+
 Depois do login, o link "Alterar senha" troca a senha. A nova senha fica guardada no banco, na tabela `admin_senha`, e passa a valer no lugar de `CATALOGO_ADMIN_SENHA_HASH`.
 
 Migrações da edição, em ordem, a aplicar uma vez em cada banco: `003_permissoes_escrita.sql`, `004_senha_admin.sql` e `005_permissao_capa.sql`. O papel `catalogo_escrita` precisa existir antes.

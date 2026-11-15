@@ -181,7 +181,7 @@ ORDENACOES = {
 
 SQL_LISTA = {
     "livros": """
-        SELECT l.codigo, l.titulo, l.capa_arquivo,
+        SELECT l.codigo, l.titulo, l.capa_arquivo, l.autografado,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM livro_autor la JOIN pessoa p ON p.id = la.pessoa_id
                  WHERE la.livro_id = l.id) AS subtitulo
@@ -191,7 +191,7 @@ SQL_LISTA = {
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "gibis": """
-        SELECT g.codigo, g.titulo, g.capa_arquivo, g.numero_serie,
+        SELECT g.codigo, g.titulo, g.capa_arquivo, g.numero_serie, g.autografado,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM gibi_pessoa gp JOIN pessoa p ON p.id = gp.pessoa_id
                  WHERE gp.gibi_id = g.id) AS subtitulo
@@ -201,7 +201,7 @@ SQL_LISTA = {
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "vinil": """
-        SELECT v.codigo, v.titulo, v.capa_arquivo,
+        SELECT v.codigo, v.titulo, v.capa_arquivo, v.autografado,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM lp_artista la JOIN pessoa p ON p.id = la.pessoa_id
                  WHERE la.lp_id = v.id) AS subtitulo
@@ -211,7 +211,7 @@ SQL_LISTA = {
         LIMIT %(limite)s OFFSET %(deslocamento)s
     """,
     "album": """
-        SELECT a.codigo, a.titulo, a.capa_arquivo, NULL::text AS subtitulo
+        SELECT a.codigo, a.titulo, a.capa_arquivo, a.autografado, NULL::text AS subtitulo
         FROM album_figurinha a
         {where}
         ORDER BY {ordem}
@@ -230,7 +230,7 @@ SQL_DETALHE = {
     "livros": """
         SELECT l.codigo, l.titulo, l.paginas, l.ano_publicacao, l.isbn10, l.isbn13,
                l.encadernacao, l.lingua, l.edicao, l.clube_do_livro, l.conservacao,
-               l.tem_conteudo_extra,
+               l.tem_conteudo_extra, l.autografado,
                l.aquisicao_data, l.preco, l.sinopse, l.nota, l.capa_arquivo, l.capa_fonte,
                ed.nome AS editora, est.nome AS estante,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
@@ -247,6 +247,7 @@ SQL_DETALHE = {
     "gibis": """
         SELECT g.codigo, g.titulo, g.categoria, g.paginas, g.ano_publicacao,
                g.isbn10, g.isbn13, g.encadernacao, g.clube_do_livro, g.conservacao,
+               g.autografado,
                g.aquisicao_data, g.preco, g.sinopse, g.nota, g.capa_fonte,
                g.serie, g.nome_serie, g.numero_serie, g.numero_edicao,
                g.capa_arquivo,
@@ -264,7 +265,8 @@ SQL_DETALHE = {
     """,
     "vinil": """
         SELECT v.codigo, v.titulo, v.numero_musicas, v.ano_publicacao, v.numero_catalogo,
-               v.conservacao, v.aquisicao_data, v.preco, v.notas, v.capa_arquivo, v.capa_fonte,
+               v.conservacao, v.autografado, v.aquisicao_data, v.preco, v.notas,
+               v.capa_arquivo, v.capa_fonte,
                gr.nome AS gravadora, est.nome AS estante,
                (SELECT string_agg(p.nome, ', ' ORDER BY p.nome)
                   FROM lp_artista la JOIN pessoa p ON p.id = la.pessoa_id
@@ -279,7 +281,8 @@ SQL_DETALHE = {
     """,
     "album": """
         SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
-               a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte, a.completo,
+               a.autografado, a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte,
+               a.completo,
                a.tem_extra, a.extra_descricao, a.extra_total,
                ed.nome AS editora, est.nome AS estante
         FROM album_figurinha a
@@ -345,6 +348,7 @@ CAMPOS_POPUP = {
         ("Conteúdo extra", "tem_conteudo_extra"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
+        ("Autografado", "autografado"),
         ("Aquisição", "aquisicao_data"),
         ("Preço", "preco"),
         ("Observações", "nota"),
@@ -365,6 +369,7 @@ CAMPOS_POPUP = {
         ("Clube do Livro", "clube_do_livro"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
+        ("Autografado", "autografado"),
         ("Aquisição", "aquisicao_data"),
         ("Preço", "preco"),
         ("Sinopse", "sinopse"),
@@ -379,6 +384,7 @@ CAMPOS_POPUP = {
         ("Gêneros", "generos"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
+        ("Autografado", "autografado"),
         ("Aquisição", "aquisicao_data"),
         ("Preço", "preco"),
         ("Observações", "notas"),
@@ -393,11 +399,16 @@ CAMPOS_POPUP = {
         ("Itens extras", "extra_total"),
         ("Estante", "estante"),
         ("Conservação", "conservacao"),
+        ("Autografado", "autografado"),
         ("Aquisição", "aquisicao_data"),
         ("Preço", "preco"),
         ("Observações", "notas"),
     ],
 }
+
+# Marcadores de verdadeiro/falso que o popup só mostra quando são verdadeiros:
+# "Autografado: Não" e "Conteúdo extra: Não" não dizem nada sobre o item.
+MARCAS_SO_QUANDO_VERDADEIRAS = {"autografado", "tem_conteudo_extra"}
 
 # Texto longo que fica sob a capa (no espaço que sobra ao lado da ficha), e não na
 # lista de campos: livros e gibis mostram a sinopse, vinil e álbum as observações.
@@ -507,8 +518,8 @@ def detalhe(app, tipo, codigo):
     for rotulo, chave in CAMPOS_POPUP[tipo]:
         if chave == chave_sinopse:
             continue
-        # O marcador do livro só aparece quando é verdadeiro: "Conteúdo extra: Não" não diz nada.
-        if chave == "tem_conteudo_extra" and not linha.get(chave):
+        # Marcadores de verdadeiro/falso só aparecem quando são verdadeiros.
+        if chave in MARCAS_SO_QUANDO_VERDADEIRAS and not linha.get(chave):
             continue
         valor = formatar(linha.get(chave))
         if valor:

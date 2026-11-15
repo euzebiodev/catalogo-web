@@ -1097,5 +1097,134 @@ class ConteudoExtraLivroTest(unittest.TestCase):
         self.assertNotIn("Conteúdo extra", [campo["rotulo"] for campo in dados["campos"]])
 
 
+ITENS_AUTOGRAFADO = {
+    "livros": ("livro", "T9996", "Livro autografado de teste"),
+    "gibis": ("gibi", "H9996", "Gibi autografado de teste"),
+    "vinil": ("lp_vinil", "V996", "Vinil autografado de teste"),
+    "album": ("album_figurinha", "F9996", "Álbum autografado de teste"),
+}
+
+
+def limpar_autografado():
+    """Remove os itens temporários dos testes do marcador Autografado."""
+    with psycopg.connect(URL) as conexao:
+        for tabela, codigo, _ in (*ITENS_AUTOGRAFADO.values(), ("livro", "T9995", "")):
+            conexao.execute(f"DELETE FROM {tabela} WHERE codigo = %s", (codigo,))
+
+
+class AutografadoTest(unittest.TestCase):
+    """Marcador "Autografado" nos quatro tipos: formulário, banco, lista e popup."""
+
+    @classmethod
+    def setUpClass(cls):
+        limpar_autografado()
+
+    @classmethod
+    def tearDownClass(cls):
+        limpar_autografado()
+
+    def setUp(self):
+        limpar_autografado()
+        with psycopg.connect(URL) as conexao:
+            for tabela, codigo, titulo in ITENS_AUTOGRAFADO.values():
+                conexao.execute(
+                    f"INSERT INTO {tabela} (codigo, titulo) VALUES (%s, %s)", (codigo, titulo)
+                )
+            conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+        self.cliente = criar_app().test_client()
+        token = self.token("/entrar")
+        self.cliente.post(
+            "/entrar",
+            data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/livros"},
+        )
+
+    def token(self, url):
+        html = self.cliente.get(url).get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def enviar(self, tipo, codigo, marcado):
+        """Envia o formulário de edição com a caixa Autografado marcada ou desmarcada."""
+        dados = {campo["chave"]: "" for campo in edicao.campos_formulario(tipo)}
+        dados["titulo"] = ITENS_AUTOGRAFADO[tipo][2]
+        dados["csrf"] = self.token(f"/{tipo}/{codigo}/editar")
+        if marcado:
+            dados["autografado"] = "on"
+        return self.cliente.post(f"/{tipo}/{codigo}/editar", data=dados)
+
+    def valor(self, tabela, codigo):
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute(
+                f"SELECT autografado FROM {tabela} WHERE codigo = %s", (codigo,)
+            ).fetchone()[0]
+
+    def test_caixa_aparece_no_formulario_dos_quatro_tipos(self):
+        for tipo, (_, codigo, _) in ITENS_AUTOGRAFADO.items():
+            html = self.cliente.get(f"/{tipo}/{codigo}/editar").get_data(as_text=True)
+            self.assertIn('type="checkbox" name="autografado"', html, tipo)
+
+    def test_caixa_aparece_no_cadastro_novo(self):
+        for tipo in ITENS_AUTOGRAFADO:
+            html = self.cliente.get(f"/{tipo}/novo").get_data(as_text=True)
+            self.assertIn('type="checkbox" name="autografado"', html, tipo)
+
+    def test_marcar_grava_verdadeiro_nos_quatro_tipos(self):
+        for tipo, (tabela, codigo, _) in ITENS_AUTOGRAFADO.items():
+            self.assertEqual(self.enviar(tipo, codigo, True).status_code, 302, tipo)
+            self.assertTrue(self.valor(tabela, codigo), tipo)
+
+    def test_desmarcar_grava_falso(self):
+        for tipo, (tabela, codigo, _) in ITENS_AUTOGRAFADO.items():
+            self.enviar(tipo, codigo, True)
+            self.assertEqual(self.enviar(tipo, codigo, False).status_code, 302, tipo)
+            self.assertFalse(self.valor(tabela, codigo), tipo)
+
+    def test_item_sem_edicao_fica_sem_marca(self):
+        for tabela, codigo, _ in ITENS_AUTOGRAFADO.values():
+            self.assertFalse(self.valor(tabela, codigo))
+
+    def test_cadastro_novo_aceita_a_marca(self):
+        dados = {campo["chave"]: "" for campo in edicao.campos_formulario("livros")}
+        dados.update(
+            codigo="T9995",
+            titulo="Livro novo autografado de teste",
+            autografado="on",
+            csrf=self.token("/livros/novo"),
+        )
+        resposta = self.cliente.post("/livros/novo", data=dados, content_type="multipart/form-data")
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(self.valor("livro", "T9995"))
+
+    def test_popup_mostra_so_quando_autografado(self):
+        for tipo, (_, codigo, _) in ITENS_AUTOGRAFADO.items():
+            self.enviar(tipo, codigo, True)
+            campos = {
+                campo["rotulo"]: campo["valor"]
+                for campo in self.cliente.get(f"/api/{tipo}/{codigo}").get_json()["campos"]
+            }
+            self.assertEqual(campos.get("Autografado"), "Sim", tipo)
+
+            self.enviar(tipo, codigo, False)
+            rotulos = [
+                campo["rotulo"]
+                for campo in self.cliente.get(f"/api/{tipo}/{codigo}").get_json()["campos"]
+            ]
+            self.assertNotIn("Autografado", rotulos, tipo)
+
+    def test_pagina_do_item_mostra_o_marcador(self):
+        self.enviar("gibis", "H9996", True)
+        html = self.cliente.get("/gibis/H9996").get_data(as_text=True)
+        self.assertIn("Autografado", html)
+
+    def test_lista_mostra_o_selo(self):
+        self.enviar("livros", "T9996", True)
+        html = self.cliente.get("/livros", query_string={"q": "T9996"}).get_data(as_text=True)
+        self.assertIn("cartao-autografado", html)
+        self.assertIn(">Autografado</span>", html)
+
+        self.enviar("livros", "T9996", False)
+        html = self.cliente.get("/livros", query_string={"q": "T9996"}).get_data(as_text=True)
+        self.assertNotIn("cartao-autografado", html)
+
+
 if __name__ == "__main__":
     unittest.main()

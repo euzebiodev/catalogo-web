@@ -37,6 +37,8 @@ _ISBN10 = Campo("isbn10", "isbn10", "texto", "ISBN-10", tamanho=20)
 _ISBN13 = Campo("isbn13", "isbn13", "texto", "ISBN-13", tamanho=20)
 _CLUBE = Campo("clube_do_livro", "clube_do_livro", "texto", "Clube do Livro")
 _PAGINAS = Campo("paginas", "paginas", "inteiro", "Páginas", faixa=(0, 100000))
+# Exemplar autografado: vale para todos os tipos (ver db/migracoes/021_autografado.sql).
+_AUTOGRAFADO = Campo("autografado", "autografado", "booleano", "Autografado")
 
 CAMPOS = {
     "livros": {
@@ -59,6 +61,7 @@ CAMPOS = {
             # Marcador do livro: true quando a edição veio com pôster, marcador, agenda etc.
             Campo("tem_conteudo_extra", "tem_conteudo_extra", "booleano", "Tem conteúdo extra"),
             _CONSERVACAO,
+            _AUTOGRAFADO,
             _AQUISICAO,
             _PRECO,
             _FONTE_CAPA,
@@ -87,6 +90,7 @@ CAMPOS = {
             _ISBN13,
             _CLUBE,
             _CONSERVACAO,
+            _AUTOGRAFADO,
             _AQUISICAO,
             _PRECO,
             _FONTE_CAPA,
@@ -105,6 +109,7 @@ CAMPOS = {
             _ANO,
             Campo("numero_catalogo", "numero_catalogo", "texto", "Número de catálogo"),
             _CONSERVACAO,
+            _AUTOGRAFADO,
             _AQUISICAO,
             _PRECO,
             _FONTE_CAPA,
@@ -123,6 +128,7 @@ CAMPOS = {
             Campo("extra_total", "extra_total", "inteiro", "Número de itens extras", faixa=(0, 5000)),
             _ANO,
             _CONSERVACAO,
+            _AUTOGRAFADO,
             _AQUISICAO,
             _PRECO,
             _FONTE_CAPA,

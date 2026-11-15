@@ -93,6 +93,9 @@
             {% if item.numero_serie %}
               <span class="cartao-serie">nº {{ item.numero_serie }}</span>
             {% endif %}
+            {% if item.autografado %}
+              <span class="cartao-autografado">Autografado</span>
+            {% endif %}
             {% if item.subtitulo %}
               <span class="cartao-subtitulo">{{ item.subtitulo }}</span>
             {% endif %}
