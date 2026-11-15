@@ -37,6 +37,15 @@ FILTROS = {
             "SELECT DISTINCT ed.nome AS valor FROM editora ed"
             " JOIN livro l ON l.editora_id = ed.id ORDER BY 1",
         ),
+        # O clube vem como o nome foi digitado (Clube Rio Norte, Círculo do Livro...).
+        # Sem initcap: nomes com sigla (L&PM) ficariam errados.
+        "clube": Filtro(
+            "Clube do Livro",
+            "lower(trim(l.clube_do_livro)) = lower(%(clube)s)",
+            "SELECT min(trim(clube_do_livro)) AS valor FROM livro"
+            " WHERE trim(coalesce(clube_do_livro, '')) <> ''"
+            " GROUP BY lower(trim(clube_do_livro)) ORDER BY 1",
+        ),
         "encadernacao": Filtro(
             "Encadernação",
             "lower(trim(l.encadernacao)) = lower(%(encadernacao)s)",
@@ -63,6 +72,14 @@ FILTROS = {
             "g.editora_id IN (SELECT id FROM editora WHERE nome = %(editora)s)",
             "SELECT DISTINCT ed.nome AS valor FROM editora ed"
             " JOIN gibi g ON g.editora_id = ed.id ORDER BY 1",
+        ),
+        # Mesmo critério dos livros: mostra o nome do clube como foi cadastrado.
+        "clube": Filtro(
+            "Clube do Livro",
+            "lower(trim(g.clube_do_livro)) = lower(%(clube)s)",
+            "SELECT min(trim(clube_do_livro)) AS valor FROM gibi"
+            " WHERE trim(coalesce(clube_do_livro, '')) <> ''"
+            " GROUP BY lower(trim(clube_do_livro)) ORDER BY 1",
         ),
     },
     "vinil": {

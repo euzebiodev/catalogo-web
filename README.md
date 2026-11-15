@@ -95,6 +95,7 @@ Filtros aceitos (todos combináveis; a busca de texto usa `ILIKE`, então ignora
 | `ano_de`, `ano_ate` | todas | faixa de ano de publicação |
 | `genero` | livros, gibis, vinil | gênero |
 | `editora` | livros, gibis | editora |
+| `clube` | livros, gibis | clube do livro pelo nome cadastrado (ex.: `Clube Rio Norte`), sem diferença de maiúsculas |
 | `encadernacao` | livros | encadernação (sem diferença de maiúsculas) |
 | `categoria` | gibis | categoria (Gibi, Graphic Novel, Mangá) |
 | `gravadora` | vinil | gravadora |
