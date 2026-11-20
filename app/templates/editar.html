@@ -216,14 +216,28 @@
         <h3>Figurinhas de {{ valores.titulo or codigo }}</h3>
         {% if figurinhas.total > 0 %}
           <p>Marque as figurinhas que você já tem. O álbum fica completo quando todas estiverem marcadas.</p>
-          <div class="grade-figurinhas">
-            {% for n in range(1, figurinhas.total + 1) %}
-              <label class="figurinha">
-                <span>{{ n }}</span>
-                <input type="checkbox" name="numero" value="{{ n }}" {% if n in figurinhas.marcadas %}checked{% endif %}>
-              </label>
+          {% if figurinhas.copa %}
+            {% for secao in figurinhas.secoes %}
+              <h4 class="figurinhas-secao">{{ secao.nome }}</h4>
+              <div class="grade-figurinhas">
+                {% for f in secao.figurinhas %}
+                  <label class="figurinha">
+                    <span>{{ f.rotulo }}</span>
+                    <input type="checkbox" name="numero" value="{{ f.numero }}" {% if f.numero in figurinhas.marcadas %}checked{% endif %}>
+                  </label>
+                {% endfor %}
+              </div>
             {% endfor %}
-          </div>
+          {% else %}
+            <div class="grade-figurinhas">
+              {% for n in range(1, figurinhas.total + 1) %}
+                <label class="figurinha">
+                  <span>{{ n }}</span>
+                  <input type="checkbox" name="numero" value="{{ n }}" {% if n in figurinhas.marcadas %}checked{% endif %}>
+                </label>
+              {% endfor %}
+            </div>
+          {% endif %}
           <div class="editar-acoes">
             <button type="submit">Salvar figurinhas</button>
             <button type="button" class="botao-secundario" data-fechar-figurinhas>Fechar</button>

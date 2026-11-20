@@ -165,7 +165,7 @@
 
   // Segundo popup, por cima do detalhe: mostra cada número e destaca os marcados.
   function abrirMarcados(dados, parte, rotulo) {
-    const { total, marcadas } = parte;
+    const { total, marcadas, rotulos } = parte;
     const marcadasSet = new Set(marcadas);
 
     let caixa = document.getElementById("figurinhas-popup");
@@ -193,7 +193,8 @@
     for (let n = 1; n <= total; n++) {
       const numero = document.createElement("span");
       numero.className = "figurinha-mostra" + (marcadasSet.has(n) ? " marcada" : "");
-      numero.textContent = n;
+      // Álbum de Copa: mostra a sigla e o número (ex.: QAT1); os demais, só o número.
+      numero.textContent = rotulos ? rotulos[n - 1] : n;
       grade.append(numero);
     }
 

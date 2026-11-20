@@ -11,6 +11,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import NamedTuple, Optional
 
+from . import copa
+
 from .db import fetch_all, fetch_one
 
 
@@ -123,6 +125,7 @@ CAMPOS = {
             _EDITORA,
             _ESTANTE,
             Campo("numero_figurinhas", "numero_figurinhas", "inteiro", "Número de figurinhas", faixa=(0, 5000)),
+            Campo("copa_mundo", "copa_mundo", "booleano", "Álbum de Copa do Mundo (sigla e número)"),
             Campo("tem_extra", "tem_extra", "booleano", "Tem conteúdo extra"),
             Campo("extra_descricao", "extra_descricao", "longo", "Descrição do conteúdo extra", tamanho=1000),
             Campo("extra_total", "extra_total", "inteiro", "Número de itens extras", faixa=(0, 5000)),
@@ -258,6 +261,9 @@ def ler_formulario(tipo, form):
             valores[campo.chave] = _converter(campo, bruto)
         except ValueError as erro:
             erros.append(f"{campo.rotulo}: {erro}")
+    if tipo == "album" and valores.get("copa_mundo"):
+        # Álbum de Copa tem sempre as 670 figurinhas do álbum oficial.
+        valores["numero_figurinhas"] = copa.TOTAL_FIGURINHAS
     return valores, erros
 
 
@@ -374,7 +380,7 @@ def figurinhas_do_album(app, codigo):
     """Total de figurinhas, as marcadas e se está completo. None se o álbum não existe."""
     linha = fetch_one(
         app,
-        "SELECT id, COALESCE(numero_figurinhas, 0) AS total, completo"
+        "SELECT id, COALESCE(numero_figurinhas, 0) AS total, completo, copa_mundo"
         " FROM album_figurinha WHERE codigo = %s",
         (codigo,),
     )
@@ -385,10 +391,14 @@ def figurinhas_do_album(app, codigo):
         "SELECT numero FROM album_figurinha_marcada WHERE album_id = %s ORDER BY numero",
         (linha["id"],),
     )
+    copa_mundo = bool(linha["copa_mundo"])
     return {
-        "total": linha["total"],
+        "total": copa.TOTAL_FIGURINHAS if copa_mundo else linha["total"],
         "marcadas": {m["numero"] for m in marcadas},
         "completo": linha["completo"],
+        "copa": copa_mundo,
+        # Seções do álbum de Copa (sigla e número). Vazio nos demais álbuns.
+        "secoes": copa.secoes_com_numeros() if copa_mundo else [],
     }
 
 
@@ -400,12 +410,14 @@ def salvar_figurinhas(app, codigo, marcadas):
     with app.extensions["db_pool_escrita"].connection() as conn:
         with conn.transaction():
             linha = conn.execute(
-                "SELECT id, COALESCE(numero_figurinhas, 0) AS total FROM album_figurinha WHERE codigo = %s",
+                "SELECT id, COALESCE(numero_figurinhas, 0) AS total, copa_mundo"
+                " FROM album_figurinha WHERE codigo = %s",
                 (codigo,),
             ).fetchone()
             if linha is None:
                 return False
-            validas = sorted({n for n in marcadas if 1 <= n <= linha["total"]})
+            total = copa.TOTAL_FIGURINHAS if linha["copa_mundo"] else linha["total"]
+            validas = sorted({n for n in marcadas if 1 <= n <= total})
             conn.execute("DELETE FROM album_figurinha_marcada WHERE album_id = %s", (linha["id"],))
             for numero in validas:
                 conn.execute(
@@ -420,12 +432,13 @@ def _recalcular_completo(conn, album_id):
     """Completo = sim quando todas as figurinhas de 1 até o total estão marcadas (e há total)."""
     conn.execute(
         """UPDATE album_figurinha a
-              SET completo = (COALESCE(a.numero_figurinhas, 0) > 0
+              SET completo = (CASE WHEN a.copa_mundo THEN %(copa)s ELSE COALESCE(a.numero_figurinhas, 0) END > 0
                   AND (SELECT count(*) FROM album_figurinha_marcada m
-                        WHERE m.album_id = a.id AND m.numero BETWEEN 1 AND COALESCE(a.numero_figurinhas, 0))
-                      = COALESCE(a.numero_figurinhas, 0))
-            WHERE a.id = %s""",
-        (album_id,),
+                        WHERE m.album_id = a.id
+                          AND m.numero BETWEEN 1 AND CASE WHEN a.copa_mundo THEN %(copa)s ELSE COALESCE(a.numero_figurinhas, 0) END)
+                      = CASE WHEN a.copa_mundo THEN %(copa)s ELSE COALESCE(a.numero_figurinhas, 0) END)
+            WHERE a.id = %(id)s""",
+        {"id": album_id, "copa": copa.TOTAL_FIGURINHAS},
     )
 
 

@@ -706,6 +706,12 @@ body {
   font-size: 0.95rem;
 }
 
+.figurinhas-secao {
+  margin: 14px 0 6px;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
 .figurinha-mostra {
   display: grid;
   place-items: center;
