@@ -10,9 +10,9 @@ Site de leitura do acervo pessoal (livros, gibis, vinis e álbuns de figurinhas)
 
 ## Estrutura
 
-- `app/`: `__init__.py` (create_app e configuração), `db.py` (pools de conexão), `catalogo.py` (consultas SQL e formatação do popup), `routes.py` (rotas), `auth.py` (login, senha e CSRF), `edicao.py` (formulários de edição), `templates/`, `static/`.
+- `app/`: `__init__.py` (create_app e configuração), `db.py` (pools de conexão), `catalogo.py` (consultas SQL e formatação do popup), `routes.py` (rotas), `auth.py` (login, senha e CSRF), `edicao.py` (formulários de edição), `copa.py` (estrutura dos álbuns de Copa por edição), `templates/`, `static/`.
 - `db/schema.sql`: esquema sem dados, usado só em banco vazio.
-- `db/migracoes/`: migrações numeradas (002 a 021). Não são aplicadas automaticamente.
+- `db/migracoes/`: migrações numeradas (002 a 023). Não são aplicadas automaticamente.
 - `deploy/deploy-catalogo-web.sh`: cópia de referência do script de deploy. O que roda como root é o arquivo em `/opt`.
 - `restauracao/`: scripts de restauração de backup. O `restauracao.conf` real fica fora do git.
 - `tests/`: testes de filtros da lista e de edição.

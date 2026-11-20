@@ -283,7 +283,7 @@ SQL_DETALHE = {
     "album": """
         SELECT a.codigo, a.titulo, a.numero_figurinhas, a.ano_publicacao, a.conservacao,
                a.autografado, a.aquisicao_data, a.preco, a.notas, a.capa_arquivo, a.capa_fonte,
-               a.completo, a.copa_mundo,
+               a.completo, a.copa_ano,
                a.tem_extra, a.extra_descricao, a.extra_total,
                ed.nome AS editora, est.nome AS estante
         FROM album_figurinha a
@@ -547,12 +547,12 @@ def detalhe(app, tipo, codigo):
 def _figurinhas(app, linha, codigo):
     """Total de figurinhas do álbum e os números marcados, para o botão do popup."""
     marcadas = fetch_all(app, SQL_FIGURINHAS_MARCADAS, (codigo,))
-    copa_mundo = bool(linha["copa_mundo"])
+    ano = linha["copa_ano"]
     return {
-        "total": copa.TOTAL_FIGURINHAS if copa_mundo else (linha["numero_figurinhas"] or 0),
+        "total": copa.total(ano) if ano else (linha["numero_figurinhas"] or 0),
         "marcadas": [m["numero"] for m in marcadas],
         # Sigla e número de cada figurinha, na ordem do álbum (só álbum de Copa).
-        "rotulos": copa.todos_os_rotulos() if copa_mundo else None,
+        "rotulos": copa.todos_os_rotulos(ano) if ano else None,
     }
 
 

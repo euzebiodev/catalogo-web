@@ -407,6 +407,67 @@ class ExtrasTest(FigurinhasTest):
         self.assertEqual(numeros, [1, 2])
 
 
+class AlbumCopaTest(unittest.TestCase):
+    """Álbum de Copa (F9998): o formulário grava a edição e a grade mostra sigla e número."""
+
+    CODIGO = "F9998"
+
+    @classmethod
+    def setUpClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha WHERE codigo = %s", (cls.CODIGO,))
+
+    @classmethod
+    def tearDownClass(cls):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha WHERE codigo = %s", (cls.CODIGO,))
+
+    def setUp(self):
+        with psycopg.connect(URL) as conexao:
+            conexao.execute("DELETE FROM album_figurinha WHERE codigo = %s", (self.CODIGO,))
+            conexao.execute("DELETE FROM admin_senha WHERE usuario = 'admin'")
+        self.cliente = criar_app().test_client()
+        html = self.cliente.get("/entrar").get_data(as_text=True)
+        token = re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+        self.cliente.post("/entrar", data={"csrf": token, "usuario": "admin", "senha": SENHA, "proxima": "/album"})
+
+    def token_da_pagina(self, url):
+        html = self.cliente.get(url).get_data(as_text=True)
+        return re.search(r'name="csrf" value="([^"]+)"', html).group(1)
+
+    def criar_album(self, ano):
+        resposta = self.cliente.post(
+            "/album/novo",
+            data={
+                "csrf": self.token_da_pagina("/album/novo"),
+                "codigo": self.CODIGO,
+                "titulo": f"Copa de teste {ano}",
+                "copa_ano": str(ano),
+            },
+        )
+        self.assertEqual(resposta.status_code, 302)
+        with psycopg.connect(URL) as conexao:
+            return conexao.execute(
+                "SELECT numero_figurinhas, copa_ano, copa_mundo FROM album_figurinha WHERE codigo = %s",
+                (self.CODIGO,),
+            ).fetchone()
+
+    def test_formulario_grava_a_edicao_e_o_total_de_2026(self):
+        self.assertEqual(self.criar_album(2026), (994, 2026, True))
+
+    def test_formulario_grava_a_edicao_e_o_total_de_2022(self):
+        self.assertEqual(self.criar_album(2022), (670, 2022, True))
+
+    def test_grade_mostra_sigla_e_numero(self):
+        self.criar_album(2026)
+        html = self.cliente.get(f"/album/{self.CODIGO}/editar").get_data(as_text=True)
+        self.assertIn("Página inicial", html)
+        self.assertIn("FIFA World Cup History", html)
+        self.assertIn("Figurinhas da Coca-Cola", html)
+        self.assertIn("<span>CC14</span>", html)
+        self.assertEqual(html.count('type="checkbox" name="numero"'), 994)
+
+
 class FichasTest(unittest.TestCase):
     """Fichas para impressão: exigem login, têm QR code e mostram o item selecionado."""
 

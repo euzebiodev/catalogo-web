@@ -124,6 +124,8 @@ Nos livros, a caixa **Tem conteúdo extra** marca o item no popup e o botão **G
 
 Cada exemplar pode ser marcado como **Autografado**, nos quatro tipos do acervo (livros, gibis, vinis e álbuns de figurinhas): a caixa aparece no formulário de cadastro e no de edição. O popup mostra `Autografado: Sim` só quando a caixa está marcada (item sem autógrafo não repete "Não", como acontece com o conteúdo extra) e a lista mostra um selo **Autografado** sob o título. Em bancos que já existem, aplique `db/migracoes/021_autografado.sql`.
 
+Nos álbuns de figurinhas, o campo **Ano da Copa do Mundo** (2022 ou 2026) diz que o álbum segue a numeração da Panini por sigla e número (ex.: `BRA1`, `FWC19`, `CC3`). O total de figurinhas e as seções vêm da edição, em `app/copa.py`: 670 no álbum do Catar 2022 e 994 no de 2026 (página inicial `00` e `FWC1`–`FWC8`, 48 seleções de 20 figurinhas, `FWC9`–`FWC19` do FIFA World Cup History e `CC1`–`CC14` da Coca-Cola). Com o campo em branco, o álbum usa a grade numérica comum. Em bancos que já existem, aplique `db/migracoes/023_album_copa_ano.sql`; a `022_album_copa_mundo.sql` criou a coluna antiga `copa_mundo`, que continua sincronizada pelo aplicativo.
+
 Depois do login, o link "Alterar senha" troca a senha. A nova senha fica guardada no banco, na tabela `admin_senha`, e passa a valer no lugar de `CATALOGO_ADMIN_SENHA_HASH`.
 
 Migrações da edição, em ordem, a aplicar uma vez em cada banco: `003_permissoes_escrita.sql`, `004_senha_admin.sql` e `005_permissao_capa.sql`. O papel `catalogo_escrita` precisa existir antes.
@@ -142,6 +144,7 @@ Testes da edição (rodam no banco do `.env`, com um registro temporário T9999 
 
 - Itens por página: `ITENS_POR_PAGINA` em `app/__init__.py` (padrão 24).
 - Campos do popup e seus rótulos: `CAMPOS_POPUP` em `app/catalogo.py`.
+- Estrutura dos álbuns de Copa (seções, siglas e total de cada edição): `app/copa.py`.
 - Texto que aparece sob a capa (sinopse nos livros e gibis, observações no vinil e no álbum): `SINOPSE` em `app/catalogo.py`. Ele sai da lista de campos do popup para não aparecer duas vezes.
 - Tema claro e escuro: variáveis CSS em `app/static/css/style.css`.
 

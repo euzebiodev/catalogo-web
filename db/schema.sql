@@ -827,3 +827,20 @@ ALTER TABLE livro ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT 
 ALTER TABLE gibi ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
 ALTER TABLE lp_vinil ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
 ALTER TABLE album_figurinha ADD COLUMN IF NOT EXISTS autografado boolean NOT NULL DEFAULT false;
+
+--
+-- Álbum de Copa do Mundo (migracoes/022_album_copa_mundo.sql)
+--
+-- copa_mundo: marcador antigo; hoje a edição fica em copa_ano (abaixo) e o aplicativo
+-- mantém esta coluna em sincronia. Os GRANTs estão na migração 022.
+
+ALTER TABLE album_figurinha ADD COLUMN IF NOT EXISTS copa_mundo boolean NOT NULL DEFAULT false;
+
+--
+-- Edição da Copa do Mundo do álbum (migracoes/023_album_copa_ano.sql)
+--
+-- copa_ano: 2022 ou 2026 (ver app/copa.py). Nulo nos álbuns comuns; quando preenchido,
+-- define o total de figurinhas e as seções com sigla e número. Os GRANTs estão na
+-- migração 023.
+
+ALTER TABLE album_figurinha ADD COLUMN IF NOT EXISTS copa_ano integer;
